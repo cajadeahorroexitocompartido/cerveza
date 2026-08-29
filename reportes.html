@@ -148,7 +148,16 @@
       return json.data;
     }
 
-    function money(valor) { return "$" + Number(valor || 0).toFixed(2); }
+    function money(valor) {
+      const num = Number(valor || 0);
+      let str = num.toFixed(15).replace(/0+$/, "").replace(/\.$/, "");
+      if (!str.includes(".")) str += ".00";
+      else {
+        const partes = str.split(".");
+        if (partes[1].length < 2) str += "0".repeat(2 - partes[1].length);
+      }
+      return "$" + str;
+    }
 
     function ocultarCarga() {
       const overlay = document.getElementById("loading-overlay");
