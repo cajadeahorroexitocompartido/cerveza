@@ -17,7 +17,7 @@
     .sidebar .nav-link.active { background-color: var(--color-primario); color: #fff; }
     .table thead { background-color: var(--bg-suave); }
     .btn { min-height: 40px; }
-    .badge-presentacion { background-color: var(--color-acento); color: #3a2a10; font-weight: 600; }
+    .seccion-precios { background: var(--bg-suave); border-radius: 10px; padding: 12px; }
 
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -44,7 +44,6 @@
       input, select, textarea, button { font-size: 16px; }
     }
 
-    /* Pantalla de carga */
     .loading-overlay {
       position: fixed; inset: 0; background: rgba(247,244,241,0.97);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -85,7 +84,7 @@
         <h3 class="mb-0">Productos</h3>
         <button class="btn btn-primary" onclick="abrirModalProducto()"><i class="fa-solid fa-plus"></i> Nuevo</button>
       </div>
-      <p class="text-muted small">El stock y el costo son siempre por <strong>unidad individual</strong>. Los precios de venta (jaba, unidad, con/sin envase, etc.) se configuran por separado dándole clic a "Precios".</p>
+      <p class="text-muted small">El stock y el costo son siempre por <strong>unidad individual</strong>. Al crear o editar un producto, agrégale ahí mismo sus precios de venta (jaba, unidad, con/sin envase, etc.).</p>
 
       <div class="table-responsive">
         <table class="table table-hover align-middle">
@@ -110,17 +109,18 @@
   <a href="reportes.html"><i class="fa-solid fa-file-invoice-dollar"></i>Reportes</a>
 </nav>
 
-<!-- Modal producto -->
+<!-- Modal producto (crear/editar) + precios en el mismo formulario -->
 <div class="modal fade" id="modalProducto" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <form id="form-producto">
         <div class="modal-header">
-          <h5 class="modal-title">Producto</h5>
+          <h5 class="modal-title" id="modalProductoTitulo">Nuevo producto</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="producto-id">
+
           <div class="mb-2">
             <label class="form-label">Nombre</label>
             <input class="form-control" id="producto-nombre" placeholder="Ej: Pilsener 600cc" required>
@@ -150,55 +150,48 @@
               <input type="number" min="0" class="form-control" id="producto-stock-minimo" value="0">
             </div>
           </div>
-          <div class="mb-2">
+          <div class="mb-3">
             <label class="form-label">Proveedor</label>
             <input class="form-control" id="producto-proveedor">
           </div>
+
+          <hr>
+          <h6><i class="fa-solid fa-tags"></i> Precios de venta (presentaciones)</h6>
+          <p class="text-muted small mb-2">Ej: "Jaba con envase" (12 unidades) a $14.00, "Unidad sin envase" (1 unidad) a $1.10, etc. Puedes agregar todas las que necesites.</p>
+
+          <div class="table-responsive mb-2">
+            <table class="table table-sm mb-2">
+              <thead><tr><th>Nombre</th><th>Unidades</th><th>Precio</th><th></th></tr></thead>
+              <tbody id="tabla-presentaciones-modal">
+                <tr><td colspan="4" class="text-muted">Todavía no hay precios agregados</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="seccion-precios">
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-5">
+                <label class="form-label small mb-1">Nombre</label>
+                <input class="form-control form-control-sm" id="pres-nombre-modal" placeholder="Ej: Jaba con envase">
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small mb-1">Unidades</label>
+                <input type="number" step="1" min="1" class="form-control form-control-sm" id="pres-unidades-modal" value="1">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Precio</label>
+                <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="pres-precio-modal">
+              </div>
+              <div class="col-12 col-md-2">
+                <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="agregarPresentacionModal()"><i class="fa-solid fa-plus"></i> Agregar</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn btn-primary w-100">Guardar</button>
+          <button type="submit" class="btn btn-primary w-100">Guardar producto y precios</button>
         </div>
       </form>
-    </div>
-  </div>
-</div>
-
-<!-- Modal presentaciones (precios) -->
-<div class="modal fade" id="modalPresentaciones" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Precios de <span id="pres-nombre-producto"></span></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="pres-id-producto">
-
-        <div class="table-responsive mb-3">
-          <table class="table table-sm">
-            <thead><tr><th>Presentación</th><th>Unidades que representa</th><th>Precio</th><th></th></tr></thead>
-            <tbody id="tabla-presentaciones"></tbody>
-          </table>
-        </div>
-
-        <form id="form-presentacion" class="row g-2 align-items-end border-top pt-3">
-          <div class="col-12 col-md-5">
-            <label class="form-label small">Nombre (ej: Jaba con envase)</label>
-            <input class="form-control" id="pres-nombre" required>
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label small">Unidades que representa</label>
-            <input type="number" step="1" min="1" class="form-control" id="pres-unidades" value="1" required>
-          </div>
-          <div class="col-6 col-md-2">
-            <label class="form-label small">Precio</label>
-            <input type="number" step="0.01" min="0" class="form-control" id="pres-precio" required>
-          </div>
-          <div class="col-12 col-md-2">
-            <button type="submit" class="btn btn-success w-100"><i class="fa-solid fa-plus"></i> Agregar</button>
-          </div>
-        </form>
-      </div>
     </div>
   </div>
 </div>
@@ -210,12 +203,19 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbxBVLlHhdBeNH2b1e1qZYnV_HX8sQAyGnFwryBgMHPLg0MiBLUUDe-9WLvjPXbcSxdMYg/exec";
     let productosCache = [];
 
+    // Modo del modal: si es edición, las presentaciones se guardan de una vez en el Sheet.
+    // Si es un producto nuevo, las presentaciones se guardan en un borrador local y
+    // recién se envían al Sheet cuando se guarda el producto completo (porque hasta
+    // ese momento el producto todavía no tiene ID).
+    let modoEdicion = false;
+    let idProductoEnEdicion = null;
+    let presentacionesDraft = []; // { tempId, Nombre, Unidades, Precio_Venta }
+
     document.addEventListener("DOMContentLoaded", () => {
       const fechaEl = document.getElementById("fecha-actual");
       if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
       cargarProductos();
       document.getElementById("form-producto").addEventListener("submit", guardarProducto);
-      document.getElementById("form-presentacion").addEventListener("submit", guardarPresentacion);
     });
 
     async function apiGet(action, params) {
@@ -272,7 +272,6 @@
             <td>${p.Stock_Minimo}</td>
             <td>${p.Proveedor || ""}</td>
             <td class="text-nowrap">
-              <button class="btn btn-sm btn-outline-dark" onclick="abrirModalPresentaciones('${p.ID}', '${(p.Nombre || '').replace(/'/g, "\\'")}')" title="Precios"><i class="fa-solid fa-tags"></i></button>
               <button class="btn btn-sm btn-outline-secondary" onclick='abrirModalProducto(${JSON.stringify(p)})'><i class="fa-solid fa-pen"></i></button>
               <button class="btn btn-sm btn-outline-danger" onclick="eliminarProducto('${p.ID}')"><i class="fa-solid fa-trash"></i></button>
             </td>
@@ -284,17 +283,113 @@
       }
     }
 
-    function abrirModalProducto(producto = null) {
+    async function abrirModalProducto(producto = null) {
       document.getElementById("form-producto").reset();
-      document.getElementById("producto-id").value = producto ? producto.ID : "";
-      document.getElementById("producto-nombre").value = producto ? producto.Nombre : "";
-      document.getElementById("producto-categoria").value = producto ? producto.Categoria : "";
-      document.getElementById("producto-precio-compra").value = producto ? producto.Precio_Compra : "";
-      document.getElementById("producto-unidades-jaba").value = producto ? (producto.Unidades_Por_Jaba || 12) : 12;
-      document.getElementById("producto-stock").value = producto ? producto.Stock_Actual : 0;
-      document.getElementById("producto-stock-minimo").value = producto ? producto.Stock_Minimo : 0;
-      document.getElementById("producto-proveedor").value = producto ? producto.Proveedor : "";
-      new bootstrap.Modal(document.getElementById("modalProducto")).show();
+      document.getElementById("pres-unidades-modal").value = 1;
+
+      if (producto) {
+        modoEdicion = true;
+        idProductoEnEdicion = producto.ID;
+        document.getElementById("modalProductoTitulo").textContent = "Editar producto";
+        document.getElementById("producto-id").value = producto.ID;
+        document.getElementById("producto-nombre").value = producto.Nombre;
+        document.getElementById("producto-categoria").value = producto.Categoria;
+        document.getElementById("producto-precio-compra").value = producto.Precio_Compra;
+        document.getElementById("producto-unidades-jaba").value = producto.Unidades_Por_Jaba || 12;
+        document.getElementById("producto-stock").value = producto.Stock_Actual;
+        document.getElementById("producto-stock-minimo").value = producto.Stock_Minimo;
+        document.getElementById("producto-proveedor").value = producto.Proveedor;
+
+        new bootstrap.Modal(document.getElementById("modalProducto")).show();
+        await recargarTablaPresentacionesEdicion();
+      } else {
+        modoEdicion = false;
+        idProductoEnEdicion = null;
+        presentacionesDraft = [];
+        document.getElementById("modalProductoTitulo").textContent = "Nuevo producto";
+        document.getElementById("producto-id").value = "";
+        document.getElementById("producto-stock").value = 0;
+        document.getElementById("producto-stock-minimo").value = 0;
+        document.getElementById("producto-unidades-jaba").value = 12;
+        renderTablaPresentacionesDraft();
+        new bootstrap.Modal(document.getElementById("modalProducto")).show();
+      }
+    }
+
+    function renderTablaPresentacionesDraft() {
+      const tbody = document.getElementById("tabla-presentaciones-modal");
+      tbody.innerHTML = presentacionesDraft.length
+        ? presentacionesDraft.map(p => `
+            <tr>
+              <td>${p.Nombre}</td>
+              <td>${p.Unidades}</td>
+              <td>${money(p.Precio_Venta)}</td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="quitarPresentacionDraft('${p.tempId}')"><i class="fa-solid fa-trash"></i></button></td>
+            </tr>`).join("")
+        : `<tr><td colspan="4" class="text-muted">Todavía no hay precios agregados</td></tr>`;
+    }
+
+    function quitarPresentacionDraft(tempId) {
+      presentacionesDraft = presentacionesDraft.filter(p => p.tempId !== tempId);
+      renderTablaPresentacionesDraft();
+    }
+
+    async function recargarTablaPresentacionesEdicion() {
+      const tbody = document.getElementById("tabla-presentaciones-modal");
+      tbody.innerHTML = `<tr><td colspan="4" class="text-muted">Cargando...</td></tr>`;
+      try {
+        const presentaciones = await apiGet("presentaciones", { id_producto: idProductoEnEdicion });
+        tbody.innerHTML = presentaciones.length
+          ? presentaciones.map(p => `
+              <tr>
+                <td>${p.Nombre}</td>
+                <td>${p.Unidades}</td>
+                <td>${money(p.Precio_Venta)}</td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarPresentacionEdicion('${p.ID}')"><i class="fa-solid fa-trash"></i></button></td>
+              </tr>`).join("")
+          : `<tr><td colspan="4" class="text-muted">Todavía no hay precios agregados</td></tr>`;
+      } catch (e) {
+        mostrarToast("Error al cargar precios: " + e.message, "error");
+      }
+    }
+
+    async function agregarPresentacionModal() {
+      const nombre = document.getElementById("pres-nombre-modal").value.trim();
+      const unidades = parseFloat(document.getElementById("pres-unidades-modal").value);
+      const precio = parseFloat(document.getElementById("pres-precio-modal").value);
+
+      if (!nombre || !unidades || isNaN(precio)) {
+        mostrarToast("Completa nombre, unidades y precio antes de agregar", "error");
+        return;
+      }
+
+      if (modoEdicion) {
+        try {
+          await apiPost("crear_presentacion", { ID_Producto: idProductoEnEdicion, Nombre: nombre, Unidades: unidades, Precio_Venta: precio });
+          mostrarToast("Precio agregado");
+          await recargarTablaPresentacionesEdicion();
+        } catch (e) {
+          mostrarToast("Error al agregar precio: " + e.message, "error");
+        }
+      } else {
+        presentacionesDraft.push({ tempId: "tmp" + Date.now() + Math.random(), Nombre: nombre, Unidades: unidades, Precio_Venta: precio });
+        renderTablaPresentacionesDraft();
+      }
+
+      document.getElementById("pres-nombre-modal").value = "";
+      document.getElementById("pres-unidades-modal").value = 1;
+      document.getElementById("pres-precio-modal").value = "";
+    }
+
+    async function eliminarPresentacionEdicion(id) {
+      if (!confirm("¿Eliminar este precio?")) return;
+      try {
+        await apiPost("eliminar_presentacion", { ID: id });
+        mostrarToast("Precio eliminado");
+        await recargarTablaPresentacionesEdicion();
+      } catch (e) {
+        mostrarToast("Error al eliminar: " + e.message, "error");
+      }
     }
 
     async function guardarProducto(ev) {
@@ -309,14 +404,26 @@
         Stock_Minimo: parseInt(document.getElementById("producto-stock-minimo").value || 0),
         Proveedor: document.getElementById("producto-proveedor").value,
       };
+
       try {
         if (id) {
           await apiPost("actualizar_producto", { ID: id, ...data });
           mostrarToast("Producto actualizado");
         } else {
-          await apiPost("crear_producto", data);
-          mostrarToast("Producto creado. Ahora agrégale sus precios con el botón de etiqueta.");
+          const nuevoProducto = await apiPost("crear_producto", data);
+
+          for (const pres of presentacionesDraft) {
+            await apiPost("crear_presentacion", {
+              ID_Producto: nuevoProducto.ID,
+              Nombre: pres.Nombre,
+              Unidades: pres.Unidades,
+              Precio_Venta: pres.Precio_Venta,
+            });
+          }
+
+          mostrarToast("Producto y precios creados correctamente");
         }
+
         bootstrap.Modal.getInstance(document.getElementById("modalProducto")).hide();
         cargarProductos();
       } catch (e) {
@@ -330,65 +437,6 @@
         await apiPost("eliminar_producto", { ID: id });
         mostrarToast("Producto eliminado");
         cargarProductos();
-      } catch (e) {
-        mostrarToast("Error al eliminar: " + e.message, "error");
-      }
-    }
-
-    // ---------------- Presentaciones (precios) ----------------
-
-    async function abrirModalPresentaciones(idProducto, nombreProducto) {
-      document.getElementById("pres-id-producto").value = idProducto;
-      document.getElementById("pres-nombre-producto").textContent = nombreProducto;
-      document.getElementById("form-presentacion").reset();
-      document.getElementById("pres-unidades").value = 1;
-      new bootstrap.Modal(document.getElementById("modalPresentaciones")).show();
-      await cargarPresentaciones(idProducto);
-    }
-
-    async function cargarPresentaciones(idProducto) {
-      try {
-        const presentaciones = await apiGet("presentaciones", { id_producto: idProducto });
-        document.getElementById("tabla-presentaciones").innerHTML = presentaciones.length
-          ? presentaciones.map(p => `
-              <tr>
-                <td>${p.Nombre}</td>
-                <td>${p.Unidades}</td>
-                <td>${money(p.Precio_Venta)}</td>
-                <td><button class="btn btn-sm btn-outline-danger" onclick="eliminarPresentacion('${p.ID}', '${idProducto}')"><i class="fa-solid fa-trash"></i></button></td>
-              </tr>`).join("")
-          : `<tr><td colspan="4" class="text-muted">Este producto todavía no tiene precios configurados</td></tr>`;
-      } catch (e) {
-        mostrarToast("Error al cargar precios: " + e.message, "error");
-      }
-    }
-
-    async function guardarPresentacion(ev) {
-      ev.preventDefault();
-      const idProducto = document.getElementById("pres-id-producto").value;
-      const data = {
-        ID_Producto: idProducto,
-        Nombre: document.getElementById("pres-nombre").value,
-        Unidades: parseFloat(document.getElementById("pres-unidades").value),
-        Precio_Venta: parseFloat(document.getElementById("pres-precio").value),
-      };
-      try {
-        await apiPost("crear_presentacion", data);
-        mostrarToast("Precio agregado");
-        document.getElementById("form-presentacion").reset();
-        document.getElementById("pres-unidades").value = 1;
-        await cargarPresentaciones(idProducto);
-      } catch (e) {
-        mostrarToast("Error al guardar precio: " + e.message, "error");
-      }
-    }
-
-    async function eliminarPresentacion(id, idProducto) {
-      if (!confirm("¿Eliminar este precio?")) return;
-      try {
-        await apiPost("eliminar_presentacion", { ID: id });
-        mostrarToast("Precio eliminado");
-        await cargarPresentaciones(idProducto);
       } catch (e) {
         mostrarToast("Error al eliminar: " + e.message, "error");
       }
