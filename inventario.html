@@ -2,18 +2,13 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Inventario - Gestión Licorería</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <style>
-    :root {
-      --color-primario: #4a1e2b;
-      --color-secundario: #7a2c3e;
-      --color-acento: #d4a24c;
-      --bg-suave: #f7f4f1;
-    }
-    body { background-color: var(--bg-suave); font-family: 'Segoe UI', system-ui, sans-serif; }
+    :root { --color-primario: #4a1e2b; --color-acento: #d4a24c; --bg-suave: #f7f4f1; }
+    body { background-color: var(--bg-suave); font-family: 'Segoe UI', system-ui, sans-serif; padding-bottom: 78px; }
     .app-navbar { background-color: var(--color-primario); }
     .sidebar { min-height: calc(100vh - 56px); background-color: #fff; border-right: 1px solid #e5e0dc; }
     .sidebar .nav-link { text-align: left; padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; color: #4a4a4a; font-weight: 500; text-decoration: none; }
@@ -21,6 +16,32 @@
     .sidebar .nav-link:hover { background-color: var(--bg-suave); }
     .sidebar .nav-link.active { background-color: var(--color-primario); color: #fff; }
     .table thead { background-color: var(--bg-suave); }
+    .btn { min-height: 40px; }
+
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid #e5e0dc;
+      display: flex; justify-content: space-around;
+      padding: 6px 0 8px; z-index: 1030;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    }
+    .bottom-nav a {
+      display: flex; flex-direction: column; align-items: center;
+      font-size: 0.68rem; color: #6c6c6c; text-decoration: none;
+      flex: 1; padding: 4px 2px; gap: 2px;
+    }
+    .bottom-nav a i { font-size: 1.25rem; }
+    .bottom-nav a.active { color: var(--color-primario); font-weight: 700; }
+    @media (min-width: 768px) {
+      body { padding-bottom: 0; }
+      .bottom-nav { display: none; }
+    }
+    @media (max-width: 767.98px) {
+      .sidebar { display: none; }
+      main { width: 100%; max-width: 100%; }
+      h3 { font-size: 1.3rem; }
+      input, select, textarea, button { font-size: 16px; }
+    }
 </style>
 </head>
 <body>
@@ -34,7 +55,7 @@
 
 <div class="container-fluid">
   <div class="row">
-    <nav class="col-md-2 sidebar d-flex flex-column p-3">
+    <nav class="col-md-2 sidebar d-md-flex flex-column p-3">
       <a class="nav-link" href="index.html"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
       <a class="nav-link" href="productos.html"><i class="fa-solid fa-boxes-stacked"></i> Productos</a>
       <a class="nav-link" href="ventas.html"><i class="fa-solid fa-cash-register"></i> Ventas</a>
@@ -42,32 +63,32 @@
       <a class="nav-link" href="reportes.html"><i class="fa-solid fa-file-invoice-dollar"></i> Reportes</a>
     </nav>
 
-    <main class="col-md-10 p-4">
+    <main class="col-12 col-md-10 p-3 p-md-4">
       <h3 class="mb-3">Movimiento de inventario</h3>
       <div class="card p-3 mb-4">
         <form id="form-movimiento" class="row g-3">
-          <div class="col-md-4">
+          <div class="col-12 col-md-4">
             <label class="form-label">Producto</label>
             <select class="form-select" id="mov-producto" required></select>
           </div>
-          <div class="col-md-3">
+          <div class="col-6 col-md-3">
             <label class="form-label">Tipo</label>
             <select class="form-select" id="mov-tipo">
-              <option value="Entrada">Entrada (compra/reposición)</option>
-              <option value="Salida">Salida (merma, rotura, etc.)</option>
-              <option value="Ajuste">Ajuste (fijar stock exacto)</option>
+              <option value="Entrada">Entrada</option>
+              <option value="Salida">Salida</option>
+              <option value="Ajuste">Ajuste</option>
             </select>
           </div>
-          <div class="col-md-2">
+          <div class="col-6 col-md-2">
             <label class="form-label">Cantidad</label>
             <input type="number" min="0" class="form-control" id="mov-cantidad" required>
           </div>
-          <div class="col-md-3">
+          <div class="col-12 col-md-3">
             <label class="form-label">Motivo</label>
             <input type="text" class="form-control" id="mov-motivo" placeholder="Opcional">
           </div>
           <div class="col-12">
-            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-rotate"></i> Registrar movimiento</button>
+            <button class="btn btn-primary w-100 w-md-auto" type="submit"><i class="fa-solid fa-rotate"></i> Registrar movimiento</button>
           </div>
         </form>
       </div>
@@ -75,7 +96,7 @@
       <h5>Historial de movimientos</h5>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant.</th><th>Motivo</th><th>Stock resultante</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant.</th><th>Motivo</th><th>Stock final</th></tr></thead>
           <tbody id="tabla-movimientos"></tbody>
         </table>
       </div>
@@ -83,24 +104,42 @@
   </div>
 </div>
 
-<div id="toast-container" class="position-fixed bottom-0 end-0 p-3"></div>
+<nav class="bottom-nav">
+  <a href="index.html"><i class="fa-solid fa-chart-line"></i>Inicio</a>
+  <a href="productos.html"><i class="fa-solid fa-boxes-stacked"></i>Productos</a>
+  <a href="ventas.html"><i class="fa-solid fa-cash-register"></i>Ventas</a>
+  <a href="inventario.html" class="active"><i class="fa-solid fa-truck-ramp-box"></i>Stock</a>
+  <a href="reportes.html"><i class="fa-solid fa-file-invoice-dollar"></i>Reportes</a>
+</nav>
+
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const API = "/api";
+    const API_URL = "https://script.google.com/macros/s/AKfycbweP-_EYNS-5wFH-2G90jCo6tnDWh7aJdPCMCe5_JfggyVdRIElfUfuzPpHeJZxjhaLvA/exec";
 
     document.addEventListener("DOMContentLoaded", async () => {
       const fechaEl = document.getElementById("fecha-actual");
-      if (fechaEl) {
-        fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
-      }
+      if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
       await cargarSelectProductos();
       cargarMovimientos();
       document.getElementById("form-movimiento").addEventListener("submit", registrarMovimiento);
     });
 
-    async function apiFetch(path, options = {}) {
-      const res = await fetch(API + path, { headers: { "Content-Type": "application/json" }, ...options });
+    async function apiGet(action, params) {
+      const qs = new URLSearchParams({ action, ...(params || {}) });
+      const res = await fetch(API_URL + "?" + qs.toString());
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Error desconocido");
+      return json.data;
+    }
+
+    async function apiPost(action, data) {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action, ...(data || {}) }),
+      });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Error desconocido");
       return json.data;
@@ -123,7 +162,7 @@
 
     async function cargarSelectProductos() {
       try {
-        const productos = await apiFetch("/productos");
+        const productos = await apiGet("productos");
         document.getElementById("mov-producto").innerHTML = productos
           .map(p => `<option value="${p.ID}">${p.Nombre} (stock: ${p.Stock_Actual})</option>`)
           .join("");
@@ -134,7 +173,7 @@
 
     async function cargarMovimientos() {
       try {
-        const movs = await apiFetch("/inventario/movimientos");
+        const movs = await apiGet("movimientos");
         movs.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
         document.getElementById("tabla-movimientos").innerHTML = movs.map(m => `
           <tr>
@@ -159,7 +198,7 @@
         Motivo: document.getElementById("mov-motivo").value,
       };
       try {
-        await apiFetch("/inventario/movimientos", { method: "POST", body: JSON.stringify(data) });
+        await apiPost("crear_movimiento", data);
         mostrarToast("Movimiento registrado");
         document.getElementById("form-movimiento").reset();
         await cargarSelectProductos();
