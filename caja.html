@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caja - Gestión Licorería</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<style>
+    :root { --color-primario: #4a1e2b; --color-acento: #d4a24c; --bg-suave: #f7f4f1; }
+    body { background-color: var(--bg-suave); font-family: 'Segoe UI', system-ui, sans-serif; padding-bottom: 78px; }
+    .app-navbar { background-color: var(--color-primario); }
+    .sidebar { min-height: calc(100vh - 56px); background-color: #fff; border-right: 1px solid #e5e0dc; }
+    .sidebar .nav-link { text-align: left; padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; color: #4a4a4a; font-weight: 500; text-decoration: none; }
+    .sidebar .nav-link i { width: 22px; }
+    .sidebar .nav-link:hover { background-color: var(--bg-suave); }
+    .sidebar .nav-link.active { background-color: var(--color-primario); color: #fff; }
+    .table thead { background-color: var(--bg-suave); }
+    .btn { min-height: 40px; }
+    .saldo-card {
+      background: linear-gradient(135deg, var(--color-primario), #6b2a3c);
+      color: #fff; border-radius: 14px; padding: 22px; margin-bottom: 20px;
+    }
+    .saldo-card .etiqueta { opacity: 0.9; font-size: 0.9rem; }
+    .saldo-card .monto { font-size: 2.4rem; font-weight: 800; }
+    .badge-entrada { background-color: #2e7d55; }
+    .badge-salida { background-color: #b6412e; }
+
+    .custom-select { position: relative; }
+    .custom-select-toggle {
+      width: 100%; text-align: left; background: #fff;
+      border: 1px solid #ced4da; border-radius: .375rem;
+      padding: .5rem .75rem; display: flex; justify-content: space-between; align-items: center;
+      color: #212529;
+    }
+    .custom-select-toggle.placeholder { color: #6c757d; }
+    .custom-select-toggle:focus { outline: none; border-color: var(--color-primario); box-shadow: 0 0 0 .25rem rgba(74,30,43,0.15); }
+    .custom-select-toggle i { transition: transform 0.15s ease; color: #6c757d; }
+    .custom-select.abierto .custom-select-toggle i { transform: rotate(180deg); }
+    .custom-select-menu {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: #fff; border: 1px solid #ced4da; border-radius: .375rem;
+      max-height: 260px; overflow-y: auto; z-index: 1050;
+      display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+    .custom-select.abierto .custom-select-menu { display: block; }
+    .custom-select-menu .opcion { padding: .6rem .75rem; cursor: pointer; }
+    .custom-select-menu .opcion:hover, .custom-select-menu .opcion.activa { background: var(--bg-suave); }
+
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid #e5e0dc;
+      display: flex; justify-content: space-around;
+      padding: 6px 0 8px; z-index: 1030;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    }
+    .bottom-nav a {
+      display: flex; flex-direction: column; align-items: center;
+      font-size: 0.62rem; color: #6c6c6c; text-decoration: none;
+      flex: 1; padding: 4px 2px; gap: 2px;
+    }
+    .bottom-nav a i { font-size: 1.15rem; }
+    .bottom-nav a.active { color: var(--color-primario); font-weight: 700; }
+    @media (min-width: 768px) {
+      body { padding-bottom: 0; }
+      .bottom-nav { display: none; }
+    }
+    @media (max-width: 767.98px) {
+      .sidebar { display: none; }
+      main { width: 100%; max-width: 100%; }
+      h3 { font-size: 1.3rem; }
+      input, select, textarea, button { font-size: 16px; }
+    }
+
+    .loading-overlay {
+      position: fixed; inset: 0; background: rgba(247,244,241,0.97);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; z-index: 2000; transition: opacity 0.25s ease;
+    }
+    .loading-overlay.oculto { opacity: 0; pointer-events: none; }
+    .loading-overlay i { font-size: 3rem; color: var(--color-primario); animation: girar 1.1s linear infinite; }
+    .loading-overlay p { color: #6c6c6c; font-weight: 600; margin: 0; }
+    @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <i class="fa-solid fa-wine-bottle"></i>
+  <p>Cargando datos...</p>
+</div>
+
+<nav class="navbar navbar-dark app-navbar">
+  <div class="container-fluid">
+    <span class="navbar-brand"><i class="fa-solid fa-wine-bottle"></i> Gestión Licorería</span>
+    <span id="fecha-actual" class="text-white small"></span>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="row">
+    <nav class="col-md-2 sidebar d-md-flex flex-column p-3">
+      <a class="nav-link" href="index.html"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+      <a class="nav-link" href="productos.html"><i class="fa-solid fa-boxes-stacked"></i> Productos</a>
+      <a class="nav-link" href="ventas.html"><i class="fa-solid fa-cash-register"></i> Ventas</a>
+      <a class="nav-link" href="inventario.html"><i class="fa-solid fa-truck-ramp-box"></i> Inventario</a>
+      <a class="nav-link" href="reportes.html"><i class="fa-solid fa-file-invoice-dollar"></i> Reportes</a>
+      <a class="nav-link active" href="caja.html"><i class="fa-solid fa-wallet"></i> Caja</a>
+    </nav>
+
+    <main class="col-12 col-md-10 p-3 p-md-4">
+      <h3 class="mb-3">Manejo de dinero</h3>
+
+      <div class="saldo-card">
+        <div class="etiqueta">Saldo actual en caja</div>
+        <div class="monto" id="saldo-actual">$0.00</div>
+      </div>
+
+      <div class="card p-3 mb-4">
+        <h6 class="mb-3">Registrar entrada o salida de dinero</h6>
+        <form id="form-caja" class="row g-3">
+          <div class="col-6 col-md-3">
+            <label class="form-label">Tipo</label>
+            <div class="custom-select" id="dd-tipo-caja">
+              <button type="button" class="custom-select-toggle" id="dd-tipo-caja-toggle">
+                <span id="dd-tipo-caja-label">Entrada</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="custom-select-menu" id="dd-tipo-caja-menu"></div>
+              <input type="hidden" id="caja-tipo" value="Entrada">
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Monto</label>
+            <input type="number" step="0.01" min="0.01" class="form-control" id="caja-monto" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Detalle / motivo</label>
+            <input type="text" class="form-control" id="caja-descripcion" placeholder="Ej: retiro para gastos personales, pago a proveedor, depósito inicial..." required>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-check"></i> Registrar</button>
+          </div>
+        </form>
+      </div>
+
+      <h5>Historial de caja</h5>
+      <div class="table-responsive">
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Detalle</th><th>Saldo después</th></tr></thead>
+          <tbody id="tabla-caja"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html"><i class="fa-solid fa-chart-line"></i>Inicio</a>
+  <a href="productos.html"><i class="fa-solid fa-boxes-stacked"></i>Productos</a>
+  <a href="ventas.html"><i class="fa-solid fa-cash-register"></i>Ventas</a>
+  <a href="inventario.html"><i class="fa-solid fa-truck-ramp-box"></i>Stock</a>
+  <a href="reportes.html"><i class="fa-solid fa-file-invoice-dollar"></i>Reportes</a>
+  <a href="caja.html" class="active"><i class="fa-solid fa-wallet"></i>Caja</a>
+</nav>
+
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbxBWUlLdzx1ugy_meovkfjvehNnmlllIPLpYnhYjHLG_ZmAgDNLYK4lDoKApLWDLYTI/exec";
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const fechaEl = document.getElementById("fecha-actual");
+      if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
+
+      inicializarDropdown("dd-tipo-caja");
+      poblarDropdown("dd-tipo-caja", [
+        { value: "Entrada", label: "Entrada (ingresa dinero)" },
+        { value: "Salida", label: "Salida (sale dinero)" },
+      ], "Entrada", "Entrada", null);
+
+      await cargarCaja();
+      ocultarCarga();
+
+      document.getElementById("form-caja").addEventListener("submit", registrarCaja);
+    });
+
+    function inicializarDropdown(nombre) {
+      const contenedor = document.getElementById(nombre);
+      const toggle = document.getElementById(nombre + "-toggle");
+      toggle.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const yaAbierto = contenedor.classList.contains("abierto");
+        cerrarTodosLosDropdowns();
+        if (!yaAbierto) contenedor.classList.add("abierto");
+      });
+    }
+
+    function cerrarTodosLosDropdowns() {
+      document.querySelectorAll(".custom-select.abierto").forEach(c => c.classList.remove("abierto"));
+    }
+
+    document.addEventListener("click", cerrarTodosLosDropdowns);
+
+    function poblarDropdown(nombre, opciones, valorSeleccionado, textoSeleccionado, onSeleccionar) {
+      const menu = document.getElementById(nombre + "-menu");
+      const label = document.getElementById(nombre + "-label");
+      const toggle = document.getElementById(nombre + "-toggle");
+      const input = document.getElementById("caja-tipo");
+
+      menu.innerHTML = opciones.map(o => `<div class="opcion" data-value="${o.value}">${o.label}</div>`).join("");
+      menu.querySelectorAll(".opcion").forEach((el, i) => {
+        el.addEventListener("click", () => {
+          const opcion = opciones[i];
+          input.value = opcion.value;
+          label.textContent = opcion.label;
+          toggle.classList.remove("placeholder");
+          cerrarTodosLosDropdowns();
+          if (onSeleccionar) onSeleccionar(opcion.value);
+        });
+      });
+
+      input.value = valorSeleccionado;
+      label.textContent = textoSeleccionado;
+    }
+
+    async function apiGet(action, params) {
+      const qs = new URLSearchParams({ action, ...(params || {}) });
+      const res = await fetch(API_URL + "?" + qs.toString());
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Error desconocido");
+      return json.data;
+    }
+
+    async function apiPost(action, data) {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action, ...(data || {}) }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Error desconocido");
+      return json.data;
+    }
+
+    function money(valor) { return "$" + Number(valor || 0).toFixed(2); }
+
+    function ocultarCarga() {
+      const overlay = document.getElementById("loading-overlay");
+      if (overlay) overlay.classList.add("oculto");
+    }
+
+    function mostrarToast(mensaje, tipo = "success") {
+      const contenedor = document.getElementById("toast-container");
+      if (!contenedor) return;
+      const id = "t" + Date.now();
+      const html = `
+        <div id="${id}" class="toast align-items-center text-white bg-${tipo === "success" ? "success" : "danger"} border-0" role="alert">
+          <div class="d-flex">
+            <div class="toast-body">${mensaje}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        </div>`;
+      contenedor.insertAdjacentHTML("beforeend", html);
+      new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
+    }
+
+    function filaCaja(m) {
+      const esEntrada = m.Tipo === "Entrada";
+      return `
+          <tr>
+            <td>${m.Fecha}</td>
+            <td><span class="badge ${esEntrada ? "badge-entrada" : "badge-salida"}">${m.Tipo}</span></td>
+            <td>${esEntrada ? "+" : "-"} ${money(m.Monto)}</td>
+            <td>${m.Descripcion || ""}</td>
+            <td>${money(m.Saldo_Resultante)}</td>
+          </tr>`;
+    }
+
+    async function cargarCaja() {
+      try {
+        const movimientos = await apiGet("caja");
+        movimientos.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
+        document.getElementById("tabla-caja").innerHTML = movimientos.length
+          ? movimientos.map(m => filaCaja(m)).join("")
+          : `<tr><td colspan="5" class="text-muted">Todavía no hay movimientos de caja</td></tr>`;
+
+        const saldoActual = movimientos.length ? Number(movimientos[0].Saldo_Resultante) || 0 : 0;
+        document.getElementById("saldo-actual").textContent = money(saldoActual);
+      } catch (e) {
+        mostrarToast("Error al cargar la caja: " + e.message, "error");
+      }
+    }
+
+    async function registrarCaja(ev) {
+      ev.preventDefault();
+      const data = {
+        Tipo: document.getElementById("caja-tipo").value,
+        Monto: parseFloat(document.getElementById("caja-monto").value),
+        Descripcion: document.getElementById("caja-descripcion").value,
+      };
+      try {
+        const resultado = await apiPost("crear_movimiento_caja", data);
+        mostrarToast("Movimiento de caja registrado");
+
+        document.getElementById("tabla-caja").insertAdjacentHTML("afterbegin", filaCaja(resultado));
+        document.getElementById("saldo-actual").textContent = money(resultado.Saldo_Resultante);
+
+        document.getElementById("form-caja").reset();
+        poblarDropdown("dd-tipo-caja", [
+          { value: "Entrada", label: "Entrada (ingresa dinero)" },
+          { value: "Salida", label: "Salida (sale dinero)" },
+        ], "Entrada", "Entrada", null);
+      } catch (e) {
+        mostrarToast("Error al registrar: " + e.message, "error");
+      }
+    }
+</script>
+</body>
+</html>
