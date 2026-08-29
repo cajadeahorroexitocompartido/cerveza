@@ -17,14 +17,16 @@
     .sidebar .nav-link.active { background-color: var(--color-primario); color: #fff; }
     .table thead { background-color: var(--bg-suave); }
     .btn { min-height: 40px; }
-    .saldo-card {
-      background: linear-gradient(135deg, var(--color-primario), #6b2a3c);
-      color: #fff; border-radius: 14px; padding: 22px; margin-bottom: 20px;
-    }
-    .saldo-card .etiqueta { opacity: 0.9; font-size: 0.9rem; }
-    .saldo-card .monto { font-size: 2.4rem; font-weight: 800; }
+    .card-metric { border: none; border-radius: 14px; padding: 18px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); height: 100%; }
+    .card-metric h6 { opacity: 0.9; margin-bottom: 6px; font-size: 0.85rem; }
+    .card-metric .valor { font-size: 1.7rem; font-weight: 800; }
+    .bg-vino { background-color: var(--color-primario); }
+    .bg-dorado { background-color: var(--color-acento); color: #3a2a10 !important; }
+    .bg-verde { background-color: #2e7d55; }
     .badge-entrada { background-color: #2e7d55; }
     .badge-salida { background-color: #b6412e; }
+    .badge-porcobrar { background-color: #d4a24c; color: #3a2a10; }
+    .badge-cobro { background-color: #2e6f8e; }
 
     .custom-select { position: relative; }
     .custom-select-toggle {
@@ -33,7 +35,6 @@
       padding: .5rem .75rem; display: flex; justify-content: space-between; align-items: center;
       color: #212529;
     }
-    .custom-select-toggle.placeholder { color: #6c757d; }
     .custom-select-toggle:focus { outline: none; border-color: var(--color-primario); box-shadow: 0 0 0 .25rem rgba(74,30,43,0.15); }
     .custom-select-toggle i { transition: transform 0.15s ease; color: #6c757d; }
     .custom-select.abierto .custom-select-toggle i { transform: rotate(180deg); }
@@ -45,7 +46,7 @@
     }
     .custom-select.abierto .custom-select-menu { display: block; }
     .custom-select-menu .opcion { padding: .6rem .75rem; cursor: pointer; }
-    .custom-select-menu .opcion:hover, .custom-select-menu .opcion.activa { background: var(--bg-suave); }
+    .custom-select-menu .opcion:hover { background: var(--bg-suave); }
 
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -111,13 +112,20 @@
     <main class="col-12 col-md-10 p-3 p-md-4">
       <h3 class="mb-3">Manejo de dinero</h3>
 
-      <div class="saldo-card">
-        <div class="etiqueta">Saldo actual en caja</div>
-        <div class="monto" id="saldo-actual">$0.00</div>
+      <div class="row g-2 g-md-3 mb-4">
+        <div class="col-4">
+          <div class="card-metric bg-vino"><h6>Total en caja</h6><div class="valor" id="tarjeta-saldo-caja">$0.00</div></div>
+        </div>
+        <div class="col-4">
+          <div class="card-metric bg-dorado"><h6>Total por cobrar</h6><div class="valor" id="tarjeta-saldo-porcobrar">$0.00</div></div>
+        </div>
+        <div class="col-4">
+          <div class="card-metric bg-verde"><h6>Total dinero</h6><div class="valor" id="tarjeta-saldo-total">$0.00</div></div>
+        </div>
       </div>
 
       <div class="card p-3 mb-4">
-        <h6 class="mb-3">Registrar entrada o salida de dinero</h6>
+        <h6 class="mb-3">Registrar movimiento</h6>
         <form id="form-caja" class="row g-3">
           <div class="col-6 col-md-3">
             <label class="form-label">Tipo</label>
@@ -136,7 +144,7 @@
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Detalle / motivo</label>
-            <input type="text" class="form-control" id="caja-descripcion" placeholder="Ej: retiro para gastos personales, pago a proveedor, depósito inicial..." required>
+            <input type="text" class="form-control" id="caja-descripcion" placeholder="Ej: retiro personal, pago a proveedor, venta a crédito..." required>
           </div>
           <div class="col-12">
             <button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-check"></i> Registrar</button>
@@ -145,9 +153,28 @@
       </div>
 
       <h5>Historial de caja</h5>
+      <div class="card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-3">
+            <label class="form-label small mb-1">Desde</label>
+            <input type="date" class="form-control form-control-sm" id="caja-desde">
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small mb-1">Hasta</label>
+            <input type="date" class="form-control form-control-sm" id="caja-hasta">
+          </div>
+          <div class="col-6 col-md-3">
+            <button class="btn btn-outline-primary btn-sm w-100" onclick="filtrarCaja()"><i class="fa-solid fa-filter"></i> Filtrar</button>
+          </div>
+          <div class="col-6 col-md-3">
+            <button class="btn btn-outline-secondary btn-sm w-100" onclick="quitarFiltroCaja()"><i class="fa-solid fa-xmark"></i> Quitar filtro</button>
+          </div>
+        </div>
+        <p class="text-muted small mb-0 mt-2">El filtro solo afecta esta lista de transacciones — los totales de arriba siempre muestran el saldo real completo.</p>
+      </div>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
-          <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Detalle</th><th>Saldo después</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Detalle</th><th>Saldo caja</th><th>Saldo por cobrar</th></tr></thead>
           <tbody id="tabla-caja"></tbody>
         </table>
       </div>
@@ -168,19 +195,16 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxBWUlLdzx1ugy_meovkfjvehNnmlllIPLpYnhYjHLG_ZmAgDNLYK4lDoKApLWDLYTI/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxSSl9VLppU6JH6ZKJ5dlQUn7qz_4DCD5661gIIzpfYFEzQosTIv2XC6g9rddjTU6pMBw/exec";
 
     document.addEventListener("DOMContentLoaded", async () => {
       const fechaEl = document.getElementById("fecha-actual");
       if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
 
       inicializarDropdown("dd-tipo-caja");
-      poblarDropdown("dd-tipo-caja", [
-        { value: "Entrada", label: "Entrada (ingresa dinero)" },
-        { value: "Salida", label: "Salida (sale dinero)" },
-      ], "Entrada", "Entrada", null);
+      poblarDropdownTipo("Entrada");
 
-      await cargarCaja();
+      await Promise.all([cargarSaldos(), cargarCaja()]);
       ocultarCarga();
 
       document.getElementById("form-caja").addEventListener("submit", registrarCaja);
@@ -203,26 +227,30 @@
 
     document.addEventListener("click", cerrarTodosLosDropdowns);
 
-    function poblarDropdown(nombre, opciones, valorSeleccionado, textoSeleccionado, onSeleccionar) {
-      const menu = document.getElementById(nombre + "-menu");
-      const label = document.getElementById(nombre + "-label");
-      const toggle = document.getElementById(nombre + "-toggle");
+    function poblarDropdownTipo(valorSeleccionado) {
+      const opciones = [
+        { value: "Entrada", label: "Entrada (ingresa dinero a caja)" },
+        { value: "Salida", label: "Salida (sale dinero de caja)" },
+        { value: "Por Cobrar", label: "Por Cobrar (te deben, no mueve la caja)" },
+        { value: "Cobro", label: "Cobro (ya te pagaron algo pendiente)" },
+      ];
+      const menu = document.getElementById("dd-tipo-caja-menu");
+      const label = document.getElementById("dd-tipo-caja-label");
+      const toggle = document.getElementById("dd-tipo-caja-toggle");
       const input = document.getElementById("caja-tipo");
 
       menu.innerHTML = opciones.map(o => `<div class="opcion" data-value="${o.value}">${o.label}</div>`).join("");
       menu.querySelectorAll(".opcion").forEach((el, i) => {
         el.addEventListener("click", () => {
-          const opcion = opciones[i];
-          input.value = opcion.value;
-          label.textContent = opcion.label;
-          toggle.classList.remove("placeholder");
+          input.value = opciones[i].value;
+          label.textContent = opciones[i].label;
           cerrarTodosLosDropdowns();
-          if (onSeleccionar) onSeleccionar(opcion.value);
         });
       });
 
-      input.value = valorSeleccionado;
-      label.textContent = textoSeleccionado;
+      const seleccionada = opciones.find(o => o.value === valorSeleccionado) || opciones[0];
+      input.value = seleccionada.value;
+      label.textContent = seleccionada.label;
     }
 
     async function apiGet(action, params) {
@@ -266,31 +294,62 @@
       new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
     }
 
+    function badgeTipo(tipo) {
+      if (tipo === "Entrada") return `<span class="badge badge-entrada">Entrada</span>`;
+      if (tipo === "Salida") return `<span class="badge badge-salida">Salida</span>`;
+      if (tipo === "Cobro") return `<span class="badge badge-cobro">Cobro</span>`;
+      return `<span class="badge badge-porcobrar">Por Cobrar</span>`;
+    }
+
     function filaCaja(m) {
-      const esEntrada = m.Tipo === "Entrada";
+      const signo = m.Tipo === "Salida" ? "-" : "+";
       return `
           <tr>
             <td>${m.Fecha}</td>
-            <td><span class="badge ${esEntrada ? "badge-entrada" : "badge-salida"}">${m.Tipo}</span></td>
-            <td>${esEntrada ? "+" : "-"} ${money(m.Monto)}</td>
+            <td>${badgeTipo(m.Tipo)}</td>
+            <td>${signo} ${money(m.Monto)}</td>
             <td>${m.Descripcion || ""}</td>
-            <td>${money(m.Saldo_Resultante)}</td>
+            <td>${money(m.Saldo_Caja)}</td>
+            <td>${money(m.Saldo_PorCobrar)}</td>
           </tr>`;
     }
 
-    async function cargarCaja() {
+    async function cargarSaldos() {
       try {
-        const movimientos = await apiGet("caja");
+        const saldos = await apiGet("saldos_caja");
+        document.getElementById("tarjeta-saldo-caja").textContent = money(saldos.Saldo_Caja);
+        document.getElementById("tarjeta-saldo-porcobrar").textContent = money(saldos.Saldo_PorCobrar);
+        document.getElementById("tarjeta-saldo-total").textContent = money(saldos.Total);
+      } catch (e) {
+        mostrarToast("Error al cargar los saldos: " + e.message, "error");
+      }
+    }
+
+    async function cargarCaja(desde, hasta) {
+      try {
+        const params = {};
+        if (desde) params.desde = desde;
+        if (hasta) params.hasta = hasta;
+        const movimientos = await apiGet("caja", params);
         movimientos.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
         document.getElementById("tabla-caja").innerHTML = movimientos.length
           ? movimientos.map(m => filaCaja(m)).join("")
-          : `<tr><td colspan="5" class="text-muted">Todavía no hay movimientos de caja</td></tr>`;
-
-        const saldoActual = movimientos.length ? Number(movimientos[0].Saldo_Resultante) || 0 : 0;
-        document.getElementById("saldo-actual").textContent = money(saldoActual);
+          : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
       } catch (e) {
         mostrarToast("Error al cargar la caja: " + e.message, "error");
       }
+    }
+
+    function filtrarCaja() {
+      const desde = document.getElementById("caja-desde").value;
+      const hasta = document.getElementById("caja-hasta").value;
+      cargarCaja(desde, hasta);
+    }
+
+    function quitarFiltroCaja() {
+      document.getElementById("caja-desde").value = "";
+      document.getElementById("caja-hasta").value = "";
+      cargarCaja();
     }
 
     async function registrarCaja(ev) {
@@ -302,16 +361,16 @@
       };
       try {
         const resultado = await apiPost("crear_movimiento_caja", data);
-        mostrarToast("Movimiento de caja registrado");
+        mostrarToast("Movimiento registrado");
+
+        document.getElementById("tarjeta-saldo-caja").textContent = money(resultado.Saldo_Caja);
+        document.getElementById("tarjeta-saldo-porcobrar").textContent = money(resultado.Saldo_PorCobrar);
+        document.getElementById("tarjeta-saldo-total").textContent = money(resultado.Total);
 
         document.getElementById("tabla-caja").insertAdjacentHTML("afterbegin", filaCaja(resultado));
-        document.getElementById("saldo-actual").textContent = money(resultado.Saldo_Resultante);
 
         document.getElementById("form-caja").reset();
-        poblarDropdown("dd-tipo-caja", [
-          { value: "Entrada", label: "Entrada (ingresa dinero)" },
-          { value: "Salida", label: "Salida (sale dinero)" },
-        ], "Entrada", "Entrada", null);
+        poblarDropdownTipo("Entrada");
       } catch (e) {
         mostrarToast("Error al registrar: " + e.message, "error");
       }
