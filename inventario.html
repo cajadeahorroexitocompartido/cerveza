@@ -99,7 +99,7 @@
             </select>
           </div>
           <div class="col-6 col-md-2">
-            <label class="form-label">Cantidad</label>
+            <label class="form-label">Cantidad (unidades)</label>
             <input type="number" min="0" class="form-control" id="mov-cantidad" required>
           </div>
           <div class="col-12 col-md-3">
@@ -115,7 +115,7 @@
       <h5>Historial de movimientos</h5>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant.</th><th>Motivo</th><th>Stock final</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant. (unid.)</th><th>Motivo</th><th>Stock final (unid.)</th></tr></thead>
           <tbody id="tabla-movimientos"></tbody>
         </table>
       </div>
@@ -135,7 +135,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbweP-_EYNS-5wFH-2G90jCo6tnDWh7aJdPCMCe5_JfggyVdRIElfUfuzPpHeJZxjhaLvA/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxBVLlHhdBeNH2b1e1qZYnV_HX8sQAyGnFwryBgMHPLg0MiBLUUDe-9WLvjPXbcSxdMYg/exec";
 
     document.addEventListener("DOMContentLoaded", async () => {
       const fechaEl = document.getElementById("fecha-actual");

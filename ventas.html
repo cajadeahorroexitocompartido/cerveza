@@ -17,6 +17,12 @@
     .sidebar .nav-link.active { background-color: var(--color-primario); color: #fff; }
     .table thead { background-color: var(--bg-suave); }
     .btn { min-height: 40px; }
+    .resumen-venta {
+      background: linear-gradient(135deg, var(--color-primario), #6b2a3c);
+      color: #fff; border-radius: 14px; padding: 18px;
+    }
+    .resumen-venta .total { font-size: 2rem; font-weight: 800; }
+    .resumen-venta .detalle { opacity: 0.9; font-size: 0.9rem; }
 
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -43,17 +49,13 @@
       input, select, textarea, button { font-size: 16px; }
     }
 
-    /* Pantalla de carga */
     .loading-overlay {
       position: fixed; inset: 0; background: rgba(247,244,241,0.97);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 14px; z-index: 2000; transition: opacity 0.25s ease;
     }
     .loading-overlay.oculto { opacity: 0; pointer-events: none; }
-    .loading-overlay i {
-      font-size: 3rem; color: var(--color-primario);
-      animation: girar 1.1s linear infinite;
-    }
+    .loading-overlay i { font-size: 3rem; color: var(--color-primario); animation: girar 1.1s linear infinite; }
     .loading-overlay p { color: #6c6c6c; font-weight: 600; margin: 0; }
     @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
@@ -86,15 +88,21 @@
       <h3 class="mb-3">Registrar venta</h3>
       <div class="card p-3 mb-4">
         <form id="form-venta" class="row g-3">
-          <div class="col-12 col-md-5">
+          <div class="col-12 col-md-4">
             <label class="form-label">Producto</label>
             <select class="form-select" id="venta-producto" required></select>
           </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Presentación / precio</label>
+            <select class="form-select" id="venta-presentacion" required>
+              <option value="">Selecciona un producto primero</option>
+            </select>
+          </div>
           <div class="col-6 col-md-2">
             <label class="form-label">Cantidad</label>
-            <input type="number" min="1" class="form-control" id="venta-cantidad" required>
+            <input type="number" min="1" step="1" class="form-control" id="venta-cantidad" value="1" required>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md-2">
             <label class="form-label">Pago</label>
             <select class="form-select" id="venta-metodo">
               <option>Efectivo</option>
@@ -102,8 +110,20 @@
               <option>Transferencia</option>
             </select>
           </div>
-          <div class="col-12 col-md-2 d-flex align-items-end">
-            <button class="btn btn-success w-100" type="submit"><i class="fa-solid fa-check"></i> Vender</button>
+          <div class="col-12">
+            <label class="form-label">Descripción adicional (opcional)</label>
+            <input type="text" class="form-control" id="venta-descripcion" placeholder="Ej: cliente frecuente, entrega a domicilio, etc.">
+          </div>
+
+          <div class="col-12">
+            <div class="resumen-venta" id="resumen-venta">
+              <div class="detalle" id="resumen-detalle">Elige un producto y una presentación para ver el total</div>
+              <div class="total" id="resumen-total">$0.00</div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <button class="btn btn-success w-100" type="submit" id="btn-vender" disabled><i class="fa-solid fa-check"></i> Confirmar venta</button>
           </div>
         </form>
       </div>
@@ -111,7 +131,7 @@
       <h5>Historial de ventas</h5>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>P. Unit.</th><th>Total</th><th>Pago</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Presentación</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Descripción</th></tr></thead>
           <tbody id="tabla-ventas"></tbody>
         </table>
       </div>
@@ -131,14 +151,21 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbweP-_EYNS-5wFH-2G90jCo6tnDWh7aJdPCMCe5_JfggyVdRIElfUfuzPpHeJZxjhaLvA/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxBVLlHhdBeNH2b1e1qZYnV_HX8sQAyGnFwryBgMHPLg0MiBLUUDe-9WLvjPXbcSxdMYg/exec";
+    let productosCache = [];
+    let presentacionesCache = [];
 
     document.addEventListener("DOMContentLoaded", async () => {
       const fechaEl = document.getElementById("fecha-actual");
       if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
+
       await cargarSelectProductos();
       await cargarVentas();
       ocultarCarga();
+
+      document.getElementById("venta-producto").addEventListener("change", cargarPresentacionesDelProducto);
+      document.getElementById("venta-presentacion").addEventListener("change", actualizarResumen);
+      document.getElementById("venta-cantidad").addEventListener("input", actualizarResumen);
       document.getElementById("form-venta").addEventListener("submit", registrarVenta);
     });
 
@@ -185,13 +212,61 @@
 
     async function cargarSelectProductos() {
       try {
-        const productos = await apiGet("productos");
-        document.getElementById("venta-producto").innerHTML = productos
-          .map(p => `<option value="${p.ID}">${p.Nombre} (stock: ${p.Stock_Actual})</option>`)
-          .join("");
+        productosCache = await apiGet("productos");
+        document.getElementById("venta-producto").innerHTML =
+          `<option value="">Selecciona un producto</option>` +
+          productosCache.map(p => `<option value="${p.ID}">${p.Nombre}</option>`).join("");
       } catch (e) {
         mostrarToast("Error al cargar productos: " + e.message, "error");
       }
+    }
+
+    async function cargarPresentacionesDelProducto() {
+      const idProducto = document.getElementById("venta-producto").value;
+      const selectPres = document.getElementById("venta-presentacion");
+      selectPres.innerHTML = `<option value="">Cargando...</option>`;
+      actualizarResumen();
+
+      if (!idProducto) {
+        selectPres.innerHTML = `<option value="">Selecciona un producto primero</option>`;
+        return;
+      }
+
+      try {
+        presentacionesCache = await apiGet("presentaciones", { id_producto: idProducto });
+        if (!presentacionesCache.length) {
+          selectPres.innerHTML = `<option value="">Este producto no tiene precios configurados</option>`;
+          return;
+        }
+        selectPres.innerHTML = `<option value="">Elige una presentación</option>` +
+          presentacionesCache.map(p => `<option value="${p.ID}">${p.Nombre} — ${money(p.Precio_Venta)} (${p.Unidades} unid.)</option>`).join("");
+      } catch (e) {
+        mostrarToast("Error al cargar precios: " + e.message, "error");
+      }
+    }
+
+    function actualizarResumen() {
+      const idPresentacion = document.getElementById("venta-presentacion").value;
+      const cantidad = parseFloat(document.getElementById("venta-cantidad").value) || 0;
+      const detalleEl = document.getElementById("resumen-detalle");
+      const totalEl = document.getElementById("resumen-total");
+      const btnVender = document.getElementById("btn-vender");
+
+      const presentacion = presentacionesCache.find(p => String(p.ID) === String(idPresentacion));
+
+      if (!presentacion || cantidad <= 0) {
+        detalleEl.textContent = "Elige un producto y una presentación para ver el total";
+        totalEl.textContent = "$0.00";
+        btnVender.disabled = true;
+        return;
+      }
+
+      const unidadesTotales = (Number(presentacion.Unidades) || 1) * cantidad;
+      const total = (Number(presentacion.Precio_Venta) || 0) * cantidad;
+
+      detalleEl.textContent = `${cantidad} x ${presentacion.Nombre} (${money(presentacion.Precio_Venta)} c/u) = ${unidadesTotales} unidades a descontar de inventario`;
+      totalEl.textContent = money(total);
+      btnVender.disabled = false;
     }
 
     async function cargarVentas() {
@@ -202,10 +277,11 @@
           <tr>
             <td>${v.Fecha}</td>
             <td>${v.Producto}</td>
+            <td>${v.Presentacion || ""}</td>
             <td>${v.Cantidad}</td>
-            <td>${money(v.Precio_Unitario)}</td>
             <td>${money(v.Total)}</td>
             <td>${v.Metodo_Pago}</td>
+            <td>${v.Descripcion || ""}</td>
           </tr>`).join("");
       } catch (e) {
         mostrarToast("Error al cargar ventas: " + e.message, "error");
@@ -215,16 +291,20 @@
     async function registrarVenta(ev) {
       ev.preventDefault();
       const data = {
-        ID_Producto: document.getElementById("venta-producto").value,
-        Cantidad: parseInt(document.getElementById("venta-cantidad").value),
+        ID_Presentacion: document.getElementById("venta-presentacion").value,
+        Cantidad: parseFloat(document.getElementById("venta-cantidad").value),
         Metodo_Pago: document.getElementById("venta-metodo").value,
+        Descripcion: document.getElementById("venta-descripcion").value,
       };
       try {
         await apiPost("crear_venta", data);
         mostrarToast("Venta registrada correctamente");
         document.getElementById("form-venta").reset();
+        document.getElementById("venta-cantidad").value = 1;
+        document.getElementById("venta-presentacion").innerHTML = `<option value="">Selecciona un producto primero</option>`;
+        actualizarResumen();
         await cargarSelectProductos();
-        cargarVentas();
+        await cargarVentas();
       } catch (e) {
         mostrarToast("Error al registrar venta: " + e.message, "error");
       }
