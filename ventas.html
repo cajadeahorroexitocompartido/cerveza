@@ -24,6 +24,29 @@
     .resumen-venta .total { font-size: 2rem; font-weight: 800; }
     .resumen-venta .detalle { opacity: 0.9; font-size: 0.9rem; }
 
+    /* Dropdown propio (para que en celular despliegue hacia abajo, no el picker nativo) */
+    .custom-select { position: relative; }
+    .custom-select-toggle {
+      width: 100%; text-align: left; background: #fff;
+      border: 1px solid #ced4da; border-radius: .375rem;
+      padding: .5rem .75rem; display: flex; justify-content: space-between; align-items: center;
+      color: #212529;
+    }
+    .custom-select-toggle.placeholder { color: #6c757d; }
+    .custom-select-toggle:focus { outline: none; border-color: var(--color-primario); box-shadow: 0 0 0 .25rem rgba(74,30,43,0.15); }
+    .custom-select-toggle i { transition: transform 0.15s ease; color: #6c757d; }
+    .custom-select.abierto .custom-select-toggle i { transform: rotate(180deg); }
+    .custom-select-menu {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: #fff; border: 1px solid #ced4da; border-radius: .375rem;
+      max-height: 260px; overflow-y: auto; z-index: 1050;
+      display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+    .custom-select.abierto .custom-select-menu { display: block; }
+    .custom-select-menu .opcion { padding: .6rem .75rem; cursor: pointer; }
+    .custom-select-menu .opcion:hover, .custom-select-menu .opcion.activa { background: var(--bg-suave); }
+    .custom-select-menu .opcion.deshabilitada { color: #6c757d; pointer-events: none; }
+
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
       background: #fff; border-top: 1px solid #e5e0dc;
@@ -88,28 +111,48 @@
       <h3 class="mb-3">Registrar venta</h3>
       <div class="card p-3 mb-4">
         <form id="form-venta" class="row g-3">
+
           <div class="col-12 col-md-4">
             <label class="form-label">Producto</label>
-            <select class="form-select" id="venta-producto" required></select>
+            <div class="custom-select" id="dd-producto">
+              <button type="button" class="custom-select-toggle placeholder" id="dd-producto-toggle">
+                <span id="dd-producto-label">Selecciona un producto</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="custom-select-menu" id="dd-producto-menu"></div>
+              <input type="hidden" id="venta-producto">
+            </div>
           </div>
+
           <div class="col-12 col-md-4">
             <label class="form-label">Presentación / precio</label>
-            <select class="form-select" id="venta-presentacion" required>
-              <option value="">Selecciona un producto primero</option>
-            </select>
+            <div class="custom-select" id="dd-presentacion">
+              <button type="button" class="custom-select-toggle placeholder" id="dd-presentacion-toggle">
+                <span id="dd-presentacion-label">Selecciona un producto primero</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="custom-select-menu" id="dd-presentacion-menu"></div>
+              <input type="hidden" id="venta-presentacion">
+            </div>
           </div>
+
           <div class="col-6 col-md-2">
             <label class="form-label">Cantidad</label>
             <input type="number" min="1" step="1" class="form-control" id="venta-cantidad" value="1" required>
           </div>
+
           <div class="col-6 col-md-2">
             <label class="form-label">Pago</label>
-            <select class="form-select" id="venta-metodo">
-              <option>Efectivo</option>
-              <option>Tarjeta</option>
-              <option>Transferencia</option>
-            </select>
+            <div class="custom-select" id="dd-metodo">
+              <button type="button" class="custom-select-toggle" id="dd-metodo-toggle">
+                <span id="dd-metodo-label">Efectivo</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="custom-select-menu" id="dd-metodo-menu"></div>
+              <input type="hidden" id="venta-metodo" value="Efectivo">
+            </div>
           </div>
+
           <div class="col-12">
             <label class="form-label">Descripción adicional (opcional)</label>
             <input type="text" class="form-control" id="venta-descripcion" placeholder="Ej: cliente frecuente, entrega a domicilio, etc.">
@@ -153,21 +196,81 @@
 <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxBVLlHhdBeNH2b1e1qZYnV_HX8sQAyGnFwryBgMHPLg0MiBLUUDe-9WLvjPXbcSxdMYg/exec";
     let productosCache = [];
-    let presentacionesCache = [];
+    let todasPresentacionesCache = [];
+    let presentacionesDelProductoActual = [];
 
     document.addEventListener("DOMContentLoaded", async () => {
       const fechaEl = document.getElementById("fecha-actual");
       if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
 
-      await cargarSelectProductos();
-      await cargarVentas();
+      inicializarDropdown("dd-metodo");
+      inicializarDropdown("dd-producto");
+      inicializarDropdown("dd-presentacion");
+
+      poblarDropdown("dd-metodo", [
+        { value: "Efectivo", label: "Efectivo" },
+        { value: "Tarjeta", label: "Tarjeta" },
+        { value: "Transferencia", label: "Transferencia" },
+      ], "Efectivo", "Efectivo", null);
+
+      await Promise.all([
+        cargarSelectProductos(),
+        cargarTodasPresentaciones(),
+        cargarVentas(),
+      ]);
       ocultarCarga();
 
-      document.getElementById("venta-producto").addEventListener("change", cargarPresentacionesDelProducto);
-      document.getElementById("venta-presentacion").addEventListener("change", actualizarResumen);
       document.getElementById("venta-cantidad").addEventListener("input", actualizarResumen);
       document.getElementById("form-venta").addEventListener("submit", registrarVenta);
     });
+
+    // ---------------- Dropdown propio (despliega hacia abajo) ----------------
+
+    function inicializarDropdown(nombre) {
+      const contenedor = document.getElementById(nombre);
+      const toggle = document.getElementById(nombre + "-toggle");
+      toggle.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const yaAbierto = contenedor.classList.contains("abierto");
+        cerrarTodosLosDropdowns();
+        if (!yaAbierto) contenedor.classList.add("abierto");
+      });
+    }
+
+    function cerrarTodosLosDropdowns() {
+      document.querySelectorAll(".custom-select.abierto").forEach(c => c.classList.remove("abierto"));
+    }
+
+    document.addEventListener("click", cerrarTodosLosDropdowns);
+
+    // opciones: [{ value, label }]. onSeleccionar(valor) se llama al elegir una opción.
+    function poblarDropdown(nombre, opciones, valorSeleccionado, textoSeleccionado, onSeleccionar) {
+      const menu = document.getElementById(nombre + "-menu");
+      const label = document.getElementById(nombre + "-label");
+      const toggle = document.getElementById(nombre + "-toggle");
+      const input = document.getElementById(nombre === "dd-producto" ? "venta-producto" : nombre === "dd-presentacion" ? "venta-presentacion" : "venta-metodo");
+
+      menu.innerHTML = opciones.length
+        ? opciones.map(o => `<div class="opcion" data-value="${o.value}">${o.label}</div>`).join("")
+        : `<div class="opcion deshabilitada">Sin opciones disponibles</div>`;
+
+      menu.querySelectorAll(".opcion:not(.deshabilitada)").forEach((el, i) => {
+        el.addEventListener("click", () => {
+          const opcion = opciones[i];
+          input.value = opcion.value;
+          label.textContent = opcion.label;
+          toggle.classList.remove("placeholder");
+          cerrarTodosLosDropdowns();
+          if (onSeleccionar) onSeleccionar(opcion.value);
+        });
+      });
+
+      input.value = valorSeleccionado;
+      label.textContent = textoSeleccionado;
+      toggle.classList.toggle("placeholder", !valorSeleccionado);
+    }
+
+    // ---------------- API ----------------
 
     async function apiGet(action, params) {
       const qs = new URLSearchParams({ action, ...(params || {}) });
@@ -188,16 +291,7 @@
       return json.data;
     }
 
-    function money(valor) {
-      const num = Number(valor || 0);
-      let str = num.toFixed(15).replace(/0+$/, "").replace(/\.$/, "");
-      if (!str.includes(".")) str += ".00";
-      else {
-        const partes = str.split(".");
-        if (partes[1].length < 2) str += "0".repeat(2 - partes[1].length);
-      }
-      return "$" + str;
-    }
+    function money(valor) { return "$" + Number(valor || 0).toFixed(2); }
 
     function ocultarCarga() {
       const overlay = document.getElementById("loading-overlay");
@@ -219,39 +313,43 @@
       new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
     }
 
+    // ---------------- Datos ----------------
+
     async function cargarSelectProductos() {
       try {
         productosCache = await apiGet("productos");
-        document.getElementById("venta-producto").innerHTML =
-          `<option value="">Selecciona un producto</option>` +
-          productosCache.map(p => `<option value="${p.ID}">${p.Nombre}</option>`).join("");
+        const opciones = productosCache.map(p => ({ value: p.ID, label: p.Nombre }));
+        poblarDropdown("dd-producto", opciones, "", "Selecciona un producto", (idProducto) => {
+          actualizarPresentacionesDelProducto(idProducto);
+        });
       } catch (e) {
         mostrarToast("Error al cargar productos: " + e.message, "error");
       }
     }
 
-    async function cargarPresentacionesDelProducto() {
-      const idProducto = document.getElementById("venta-producto").value;
-      const selectPres = document.getElementById("venta-presentacion");
-      selectPres.innerHTML = `<option value="">Cargando...</option>`;
-      actualizarResumen();
-
-      if (!idProducto) {
-        selectPres.innerHTML = `<option value="">Selecciona un producto primero</option>`;
-        return;
-      }
-
+    async function cargarTodasPresentaciones() {
       try {
-        presentacionesCache = await apiGet("presentaciones", { id_producto: idProducto });
-        if (!presentacionesCache.length) {
-          selectPres.innerHTML = `<option value="">Este producto no tiene precios configurados</option>`;
-          return;
-        }
-        selectPres.innerHTML = `<option value="">Elige una presentación</option>` +
-          presentacionesCache.map(p => `<option value="${p.ID}">${p.Nombre} — ${money(p.Precio_Venta)} (${p.Unidades} unid.)</option>`).join("");
+        todasPresentacionesCache = await apiGet("presentaciones");
       } catch (e) {
         mostrarToast("Error al cargar precios: " + e.message, "error");
       }
+    }
+
+    // Filtra en memoria (sin llamar a la API) — por eso cambiar de producto es instantáneo.
+    function actualizarPresentacionesDelProducto(idProducto) {
+      presentacionesDelProductoActual = todasPresentacionesCache.filter(p => String(p.ID_Producto) === String(idProducto));
+
+      const opciones = presentacionesDelProductoActual.map(p => ({
+        value: p.ID,
+        label: `${p.Nombre} — ${money(p.Precio_Venta)} (${p.Unidades} unid.)`,
+      }));
+
+      poblarDropdown("dd-presentacion", opciones, "",
+        opciones.length ? "Elige una presentación" : "Este producto no tiene precios configurados",
+        () => actualizarResumen()
+      );
+
+      actualizarResumen();
     }
 
     function actualizarResumen() {
@@ -261,7 +359,7 @@
       const totalEl = document.getElementById("resumen-total");
       const btnVender = document.getElementById("btn-vender");
 
-      const presentacion = presentacionesCache.find(p => String(p.ID) === String(idPresentacion));
+      const presentacion = presentacionesDelProductoActual.find(p => String(p.ID) === String(idPresentacion));
 
       if (!presentacion || cantidad <= 0) {
         detalleEl.textContent = "Elige un producto y una presentación para ver el total";
@@ -282,7 +380,14 @@
       try {
         const ventas = await apiGet("ventas");
         ventas.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
-        document.getElementById("tabla-ventas").innerHTML = ventas.map(v => `
+        document.getElementById("tabla-ventas").innerHTML = ventas.map(v => filaVenta(v)).join("");
+      } catch (e) {
+        mostrarToast("Error al cargar ventas: " + e.message, "error");
+      }
+    }
+
+    function filaVenta(v) {
+      return `
           <tr>
             <td>${v.Fecha}</td>
             <td>${v.Producto}</td>
@@ -291,10 +396,7 @@
             <td>${money(v.Total)}</td>
             <td>${v.Metodo_Pago}</td>
             <td>${v.Descripcion || ""}</td>
-          </tr>`).join("");
-      } catch (e) {
-        mostrarToast("Error al cargar ventas: " + e.message, "error");
-      }
+          </tr>`;
     }
 
     async function registrarVenta(ev) {
@@ -305,15 +407,37 @@
         Metodo_Pago: document.getElementById("venta-metodo").value,
         Descripcion: document.getElementById("venta-descripcion").value,
       };
+
+      if (!data.ID_Presentacion) {
+        mostrarToast("Elige un producto y una presentación", "error");
+        return;
+      }
+
       try {
-        await apiPost("crear_venta", data);
+        const resultado = await apiPost("crear_venta", data);
         mostrarToast("Venta registrada correctamente");
+
+        document.getElementById("tabla-ventas").insertAdjacentHTML("afterbegin", filaVenta({
+          Fecha: resultado.Fecha,
+          Producto: resultado.Producto,
+          Presentacion: resultado.Presentacion,
+          Cantidad: resultado.Cantidad,
+          Total: resultado.Total,
+          Metodo_Pago: data.Metodo_Pago,
+          Descripcion: data.Descripcion,
+        }));
+
         document.getElementById("form-venta").reset();
         document.getElementById("venta-cantidad").value = 1;
-        document.getElementById("venta-presentacion").innerHTML = `<option value="">Selecciona un producto primero</option>`;
+        poblarDropdown("dd-producto", productosCache.map(p => ({ value: p.ID, label: p.Nombre })), "", "Selecciona un producto", (idProducto) => actualizarPresentacionesDelProducto(idProducto));
+        poblarDropdown("dd-presentacion", [], "", "Selecciona un producto primero", null);
+        poblarDropdown("dd-metodo", [
+          { value: "Efectivo", label: "Efectivo" },
+          { value: "Tarjeta", label: "Tarjeta" },
+          { value: "Transferencia", label: "Transferencia" },
+        ], "Efectivo", "Efectivo", null);
+        presentacionesDelProductoActual = [];
         actualizarResumen();
-        await cargarSelectProductos();
-        await cargarVentas();
       } catch (e) {
         mostrarToast("Error al registrar venta: " + e.message, "error");
       }
