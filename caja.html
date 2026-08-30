@@ -113,13 +113,13 @@
       <h3 class="mb-3">Manejo de dinero</h3>
 
       <div class="row g-2 g-md-3 mb-4">
-        <div class="col-4">
+        <div class="col-12 col-md-4">
           <div class="card-metric bg-vino"><h6>Total en caja</h6><div class="valor" id="tarjeta-saldo-caja">$0.00</div></div>
         </div>
-        <div class="col-4">
+        <div class="col-12 col-md-4">
           <div class="card-metric bg-dorado"><h6>Total por cobrar</h6><div class="valor" id="tarjeta-saldo-porcobrar">$0.00</div></div>
         </div>
-        <div class="col-4">
+        <div class="col-12 col-md-4">
           <div class="card-metric bg-verde"><h6>Total dinero</h6><div class="valor" id="tarjeta-saldo-total">$0.00</div></div>
         </div>
       </div>
@@ -163,10 +163,10 @@
             <label class="form-label small mb-1">Hasta</label>
             <input type="date" class="form-control form-control-sm" id="caja-hasta">
           </div>
-          <div class="col-6 col-md-3">
-            <button class="btn btn-outline-primary btn-sm w-100" onclick="filtrarCaja()"><i class="fa-solid fa-filter"></i> Filtrar</button>
+          <div class="col-12 col-md-3">
+            <button class="btn btn-primary btn-sm w-100" onclick="buscarCaja()"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-12 col-md-3">
             <button class="btn btn-outline-secondary btn-sm w-100" onclick="quitarFiltroCaja()"><i class="fa-solid fa-xmark"></i> Quitar filtro</button>
           </div>
         </div>
@@ -175,7 +175,9 @@
       <div class="table-responsive">
         <table class="table table-sm table-striped">
           <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Detalle</th><th>Saldo caja</th><th>Saldo por cobrar</th></tr></thead>
-          <tbody id="tabla-caja"></tbody>
+          <tbody id="tabla-caja">
+            <tr><td colspan="6" class="text-muted">Selecciona un rango de fechas y presiona "Buscar" para ver el historial</td></tr>
+          </tbody>
         </table>
       </div>
     </main>
@@ -204,7 +206,7 @@
       inicializarDropdown("dd-tipo-caja");
       poblarDropdownTipo("Entrada");
 
-      await Promise.all([cargarSaldos(), cargarCaja()]);
+      await cargarSaldos();
       ocultarCarga();
 
       document.getElementById("form-caja").addEventListener("submit", registrarCaja);
@@ -340,7 +342,7 @@
       }
     }
 
-    function filtrarCaja() {
+    function buscarCaja() {
       const desde = document.getElementById("caja-desde").value;
       const hasta = document.getElementById("caja-hasta").value;
       cargarCaja(desde, hasta);
@@ -349,7 +351,7 @@
     function quitarFiltroCaja() {
       document.getElementById("caja-desde").value = "";
       document.getElementById("caja-hasta").value = "";
-      cargarCaja();
+      document.getElementById("tabla-caja").innerHTML = `<tr><td colspan="6" class="text-muted">Selecciona un rango de fechas y presiona "Buscar" para ver el historial</td></tr>`;
     }
 
     async function registrarCaja(ev) {
@@ -367,7 +369,9 @@
         document.getElementById("tarjeta-saldo-porcobrar").textContent = money(resultado.Saldo_PorCobrar);
         document.getElementById("tarjeta-saldo-total").textContent = money(resultado.Total);
 
-        document.getElementById("tabla-caja").insertAdjacentHTML("afterbegin", filaCaja(resultado));
+        const tbodyCaja = document.getElementById("tabla-caja");
+        if (tbodyCaja.querySelector("td[colspan]")) tbodyCaja.innerHTML = "";
+        tbodyCaja.insertAdjacentHTML("afterbegin", filaCaja(resultado));
 
         document.getElementById("form-caja").reset();
         poblarDropdownTipo("Entrada");

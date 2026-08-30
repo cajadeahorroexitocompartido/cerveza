@@ -193,10 +193,27 @@
       </div>
 
       <h5>Historial de ventas</h5>
+      <div class="card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-4">
+            <label class="form-label small mb-1">Desde</label>
+            <input type="date" class="form-control form-control-sm" id="ventas-desde">
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="form-label small mb-1">Hasta</label>
+            <input type="date" class="form-control form-control-sm" id="ventas-hasta">
+          </div>
+          <div class="col-12 col-md-4">
+            <button class="btn btn-primary btn-sm w-100" onclick="buscarVentas()"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
+          </div>
+        </div>
+      </div>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
           <thead><tr><th>Fecha</th><th>Producto</th><th>Presentación</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Descripción</th></tr></thead>
-          <tbody id="tabla-ventas"></tbody>
+          <tbody id="tabla-ventas">
+            <tr><td colspan="7" class="text-muted">Selecciona un rango de fechas y presiona "Buscar" para ver el historial</td></tr>
+          </tbody>
         </table>
       </div>
     </main>
@@ -239,7 +256,6 @@
       await Promise.all([
         cargarSelectProductos(),
         cargarTodasPresentaciones(),
-        cargarVentas(),
       ]);
       ocultarCarga();
 
@@ -463,11 +479,22 @@
 
     // ---------------- Historial ----------------
 
-    async function cargarVentas() {
+    async function buscarVentas() {
+      const desde = document.getElementById("ventas-desde").value;
+      const hasta = document.getElementById("ventas-hasta").value;
+      await cargarVentas(desde, hasta);
+    }
+
+    async function cargarVentas(desde, hasta) {
       try {
-        const ventas = await apiGet("ventas");
+        const params = {};
+        if (desde) params.desde = desde;
+        if (hasta) params.hasta = hasta;
+        const ventas = await apiGet("ventas", params);
         ventas.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
-        document.getElementById("tabla-ventas").innerHTML = ventas.map(v => filaVenta(v)).join("");
+        document.getElementById("tabla-ventas").innerHTML = ventas.length
+          ? ventas.map(v => filaVenta(v)).join("")
+          : `<tr><td colspan="7" class="text-muted">No hay ventas en este rango</td></tr>`;
       } catch (e) {
         mostrarToast("Error al cargar ventas: " + e.message, "error");
       }
@@ -505,8 +532,11 @@
         const resultado = await apiPost("crear_venta_multiple", data);
         mostrarToast(`Venta registrada: ${resultado.Items.length} producto(s), total ${money(resultado.Total_General)}`);
 
+        const tbodyVentas = document.getElementById("tabla-ventas");
+        if (tbodyVentas.querySelector("td[colspan]")) tbodyVentas.innerHTML = "";
+
         resultado.Items.forEach(linea => {
-          document.getElementById("tabla-ventas").insertAdjacentHTML("afterbegin", filaVenta({
+          tbodyVentas.insertAdjacentHTML("afterbegin", filaVenta({
             Fecha: linea.Fecha,
             Producto: linea.Producto,
             Presentacion: linea.Presentacion,

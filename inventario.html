@@ -114,10 +114,27 @@
       </div>
 
       <h5>Historial de movimientos</h5>
+      <div class="card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-4">
+            <label class="form-label small mb-1">Desde</label>
+            <input type="date" class="form-control form-control-sm" id="mov-hist-desde">
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="form-label small mb-1">Hasta</label>
+            <input type="date" class="form-control form-control-sm" id="mov-hist-hasta">
+          </div>
+          <div class="col-12 col-md-4">
+            <button class="btn btn-primary btn-sm w-100" onclick="buscarMovimientos()"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
+          </div>
+        </div>
+      </div>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
           <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant. (unid.)</th><th>Motivo</th><th>Stock final (unid.)</th></tr></thead>
-          <tbody id="tabla-movimientos"></tbody>
+          <tbody id="tabla-movimientos">
+            <tr><td colspan="6" class="text-muted">Selecciona un rango de fechas y presiona "Buscar" para ver el historial</td></tr>
+          </tbody>
         </table>
       </div>
 
@@ -171,6 +188,21 @@
       </div>
 
       <h5>Historial de envases</h5>
+      <div class="card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-4">
+            <label class="form-label small mb-1">Desde</label>
+            <input type="date" class="form-control form-control-sm" id="env-hist-desde">
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="form-label small mb-1">Hasta</label>
+            <input type="date" class="form-control form-control-sm" id="env-hist-hasta">
+          </div>
+          <div class="col-12 col-md-4">
+            <button class="btn btn-primary btn-sm w-100" onclick="buscarEnvasesHistorial()"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
+          </div>
+        </div>
+      </div>
       <div class="table-responsive">
         <table class="table table-sm table-striped">
           <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Total resultante</th></tr></thead>
@@ -199,7 +231,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const fechaEl = document.getElementById("fecha-actual");
       if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
-      await Promise.all([cargarSelectProductos(), cargarMovimientos(), cargarExistencias(), cargarEnvases()]);
+      await Promise.all([cargarSelectProductos(), cargarExistencias(), cargarEnvasesActuales()]);
       ocultarCarga();
       document.getElementById("form-movimiento").addEventListener("submit", registrarMovimiento);
       document.getElementById("form-envase").addEventListener("submit", registrarEnvase);
@@ -263,19 +295,30 @@
       }
     }
 
-    async function cargarMovimientos() {
+    async function buscarMovimientos() {
+      const desde = document.getElementById("mov-hist-desde").value;
+      const hasta = document.getElementById("mov-hist-hasta").value;
+      await cargarMovimientos(desde, hasta);
+    }
+
+    async function cargarMovimientos(desde, hasta) {
       try {
-        const movs = await apiGet("movimientos");
+        const params = {};
+        if (desde) params.desde = desde;
+        if (hasta) params.hasta = hasta;
+        const movs = await apiGet("movimientos", params);
         movs.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
-        document.getElementById("tabla-movimientos").innerHTML = movs.map(m => `
-          <tr>
-            <td>${m.Fecha}</td>
-            <td>${m.Producto}</td>
-            <td>${m.Tipo}</td>
-            <td>${m.Cantidad}</td>
-            <td>${m.Motivo || ""}</td>
-            <td>${m.Stock_Resultante}</td>
-          </tr>`).join("");
+        document.getElementById("tabla-movimientos").innerHTML = movs.length
+          ? movs.map(m => `
+              <tr>
+                <td>${m.Fecha}</td>
+                <td>${m.Producto}</td>
+                <td>${m.Tipo}</td>
+                <td>${m.Cantidad}</td>
+                <td>${m.Motivo || ""}</td>
+                <td>${m.Stock_Resultante}</td>
+              </tr>`).join("")
+          : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
       } catch (e) {
         mostrarToast("Error al cargar movimientos: " + e.message, "error");
       }
@@ -325,14 +368,13 @@
         mostrarToast("Movimiento registrado");
         document.getElementById("form-movimiento").reset();
         await cargarSelectProductos();
-        cargarMovimientos();
         cargarExistencias();
       } catch (e) {
         mostrarToast("Error al registrar movimiento: " + e.message, "error");
       }
     }
 
-    async function cargarEnvases() {
+    async function cargarEnvasesActuales() {
       try {
         const productos = await apiGet("productos");
         document.getElementById("tabla-envases-actuales").innerHTML = productos.length
@@ -342,8 +384,23 @@
                 <td>${p.Envases_Vacios || 0}</td>
               </tr>`).join("")
           : `<tr><td colspan="2" class="text-muted">No hay productos registrados</td></tr>`;
+      } catch (e) {
+        mostrarToast("Error al cargar envases: " + e.message, "error");
+      }
+    }
 
-        const historial = await apiGet("movimientos_envases");
+    async function buscarEnvasesHistorial() {
+      const desde = document.getElementById("env-hist-desde").value;
+      const hasta = document.getElementById("env-hist-hasta").value;
+      await cargarEnvasesHistorial(desde, hasta);
+    }
+
+    async function cargarEnvasesHistorial(desde, hasta) {
+      try {
+        const params = {};
+        if (desde) params.desde = desde;
+        if (hasta) params.hasta = hasta;
+        const historial = await apiGet("movimientos_envases", params);
         historial.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
         document.getElementById("tabla-envases-historial").innerHTML = historial.length
           ? historial.map(m => `
@@ -355,7 +412,7 @@
                 <td>${m.Motivo || ""}</td>
                 <td>${m.Envases_Resultante}</td>
               </tr>`).join("")
-          : `<tr><td colspan="6" class="text-muted">Todavía no hay movimientos de envases</td></tr>`;
+          : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
       } catch (e) {
         mostrarToast("Error al cargar envases: " + e.message, "error");
       }
@@ -374,7 +431,7 @@
         mostrarToast("Envases actualizados");
         document.getElementById("form-envase").reset();
         await cargarSelectProductos();
-        cargarEnvases();
+        cargarEnvasesActuales();
       } catch (e) {
         mostrarToast("Error al registrar: " + e.message, "error");
       }
