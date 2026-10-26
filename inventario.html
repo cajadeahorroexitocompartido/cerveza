@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario - Gestión Licorería</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4a1e2b">
+<link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"></noscript>
 <style>
     :root { --color-primario: #4a1e2b; --color-acento: #d4a24c; --bg-suave: #f7f4f1; }
     body { background-color: var(--bg-suave); font-family: 'Segoe UI', system-ui, sans-serif; padding-bottom: 78px; }
@@ -42,28 +48,9 @@
       h3 { font-size: 1.3rem; }
       input, select, textarea, button { font-size: 16px; }
     }
-
-    /* Pantalla de carga */
-    .loading-overlay {
-      position: fixed; inset: 0; background: rgba(247,244,241,0.97);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 14px; z-index: 2000; transition: opacity 0.25s ease;
-    }
-    .loading-overlay.oculto { opacity: 0; pointer-events: none; }
-    .loading-overlay i {
-      font-size: 3rem; color: var(--color-primario);
-      animation: girar 1.1s linear infinite;
-    }
-    .loading-overlay p { color: #6c6c6c; font-weight: 600; margin: 0; }
-    @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-
-<div id="loading-overlay" class="loading-overlay">
-  <i class="fa-solid fa-wine-bottle"></i>
-  <p>Cargando datos...</p>
-</div>
 
 <nav class="navbar navbar-dark app-navbar">
   <div class="container-fluid">
@@ -225,138 +212,132 @@
 <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="app.js"></script>
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxSSl9VLppU6JH6ZKJ5dlQUn7qz_4DCD5661gIIzpfYFEzQosTIv2XC6g9rddjTU6pMBw/exec";
-
-    document.addEventListener("DOMContentLoaded", async () => {
-      const fechaEl = document.getElementById("fecha-actual");
-      if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
-      await Promise.all([cargarSelectProductos(), cargarExistencias(), cargarEnvasesActuales()]);
-      ocultarCarga();
-      document.getElementById("form-movimiento").addEventListener("submit", registrarMovimiento);
-      document.getElementById("form-envase").addEventListener("submit", registrarEnvase);
-    });
-
-    async function apiGet(action, params) {
-      const qs = new URLSearchParams({ action, ...(params || {}) });
-      const res = await fetch(API_URL + "?" + qs.toString());
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error desconocido");
-      return json.data;
-    }
-
-    async function apiPost(action, data) {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action, ...(data || {}) }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error desconocido");
-      return json.data;
-    }
-
-    function money(valor) { return "$" + Number(valor || 0).toFixed(2); }
-
-    function ocultarCarga() {
-      const overlay = document.getElementById("loading-overlay");
-      if (overlay) overlay.classList.add("oculto");
-    }
-
-    function mostrarToast(mensaje, tipo = "success") {
-      const contenedor = document.getElementById("toast-container");
-      if (!contenedor) return;
-      const id = "t" + Date.now();
-      const html = `
-        <div id="${id}" class="toast align-items-center text-white bg-${tipo === "success" ? "success" : "danger"} border-0" role="alert">
-          <div class="d-flex">
-            <div class="toast-body">${mensaje}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-          </div>
-        </div>`;
-      contenedor.insertAdjacentHTML("beforeend", html);
-      new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
-    }
-
     let productosCache = [];
 
-    async function cargarSelectProductos() {
+    document.addEventListener("DOMContentLoaded", () => {
+      // Historiales: últimos 7 días por defecto (sin límite superior, así incluye lo de hoy)
+      document.getElementById("mov-hist-desde").value = haceDiasISO(6);
+      document.getElementById("env-hist-desde").value = haceDiasISO(6);
+
+      document.getElementById("form-movimiento").addEventListener("submit", registrarMovimiento);
+      document.getElementById("form-envase").addEventListener("submit", registrarEnvase);
+
+      // Una sola consulta de productos alimenta las listas, las existencias y los envases
+      cargarProductosInventario();
+      buscarMovimientos();
+      buscarEnvasesHistorial();
+    });
+
+    function pintarProductos(lista) {
+      productosCache = lista;
+
+      // Listas desplegables (conservando lo que ya estaba elegido)
+      const selMov = document.getElementById("mov-producto");
+      const selEnv = document.getElementById("envase-producto");
+      const vMov = selMov.value;
+      const vEnv = selEnv.value;
+      selMov.innerHTML = lista.map(p => `<option value="${esc(p.ID)}">${esc(p.Nombre)} (stock: ${esc(p.Stock_Actual)})</option>`).join("");
+      selEnv.innerHTML = lista.map(p => `<option value="${esc(p.ID)}">${esc(p.Nombre)} (envases: ${esc(p.Envases_Vacios || 0)})</option>`).join("");
+      if (vMov && lista.some(p => String(p.ID) === String(vMov))) selMov.value = vMov;
+      if (vEnv && lista.some(p => String(p.ID) === String(vEnv))) selEnv.value = vEnv;
+
+      pintarExistencias(lista);
+      pintarEnvasesActuales(lista);
+    }
+
+    function pintarExistencias(productos) {
+      const detalle = productos
+        .map(p => ({
+          nombre: p.Nombre,
+          categoria: p.Categoria || "",
+          stock: Number(p.Stock_Actual) || 0,
+          costoUnidad: Number(p.Precio_Compra) || 0,
+          valorTotal: (Number(p.Precio_Compra) || 0) * (Number(p.Stock_Actual) || 0),
+        }))
+        .sort((a, b) => b.valorTotal - a.valorTotal);
+
+      document.getElementById("tabla-existencias").innerHTML = detalle.length
+        ? detalle.map(p => `
+            <tr>
+              <td>${esc(p.nombre)}</td>
+              <td>${esc(p.categoria)}</td>
+              <td>${p.stock}</td>
+              <td>${money(p.costoUnidad)}</td>
+              <td><strong>${money(p.valorTotal)}</strong></td>
+            </tr>`).join("")
+        : `<tr><td colspan="5" class="text-muted">No hay productos registrados</td></tr>`;
+
+      const totalGeneral = detalle.reduce((acc, p) => acc + p.valorTotal, 0);
+      document.getElementById("total-existencias").textContent = "Valor total del inventario: " + money(totalGeneral);
+    }
+
+    function pintarEnvasesActuales(productos) {
+      document.getElementById("tabla-envases-actuales").innerHTML = productos.length
+        ? productos.map(p => `
+            <tr>
+              <td>${esc(p.Nombre)}</td>
+              <td>${esc(p.Envases_Vacios || 0)}</td>
+            </tr>`).join("")
+        : `<tr><td colspan="2" class="text-muted">No hay productos registrados</td></tr>`;
+    }
+
+    async function cargarProductosInventario() {
+      if (!hayCache("productos")) {
+        document.getElementById("mov-producto").innerHTML = `<option value="">Cargando...</option>`;
+        document.getElementById("envase-producto").innerHTML = `<option value="">Cargando...</option>`;
+        document.getElementById("tabla-existencias").innerHTML = filasCarga(5, 4);
+        document.getElementById("tabla-envases-actuales").innerHTML = filasCarga(2, 4);
+      }
       try {
-        productosCache = await apiGet("productos");
-        const opciones = productosCache
-          .map(p => `<option value="${p.ID}">${p.Nombre} (stock: ${p.Stock_Actual})</option>`)
-          .join("");
-        document.getElementById("mov-producto").innerHTML = opciones;
-        document.getElementById("envase-producto").innerHTML = productosCache
-          .map(p => `<option value="${p.ID}">${p.Nombre} (envases: ${p.Envases_Vacios || 0})</option>`)
-          .join("");
+        await apiGetSWR("productos", null, pintarProductos);
       } catch (e) {
         mostrarToast("Error al cargar productos: " + e.message, "error");
       }
     }
 
-    async function buscarMovimientos() {
+    // ---------------- Movimientos de stock ----------------
+
+    function buscarMovimientos() {
       const desde = document.getElementById("mov-hist-desde").value;
       const hasta = document.getElementById("mov-hist-hasta").value;
-      await cargarMovimientos(desde, hasta);
+      return cargarMovimientos(desde, hasta);
+    }
+
+    function pintarMovimientos(lista) {
+      const movs = [...lista].sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
+      document.getElementById("tabla-movimientos").innerHTML = movs.length
+        ? movs.map(m => `
+            <tr>
+              <td>${esc(m.Fecha)}</td>
+              <td>${esc(m.Producto)}</td>
+              <td>${esc(m.Tipo)}</td>
+              <td>${esc(m.Cantidad)}</td>
+              <td>${esc(m.Motivo || "")}</td>
+              <td>${esc(m.Stock_Resultante)}</td>
+            </tr>`).join("")
+        : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
     }
 
     async function cargarMovimientos(desde, hasta) {
+      const params = {};
+      if (desde) params.desde = desde;
+      if (hasta) params.hasta = hasta;
+      if (!hayCache("movimientos", params)) {
+        document.getElementById("tabla-movimientos").innerHTML = filasCarga(6, 3);
+      }
       try {
-        const params = {};
-        if (desde) params.desde = desde;
-        if (hasta) params.hasta = hasta;
-        const movs = await apiGet("movimientos", params);
-        movs.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
-        document.getElementById("tabla-movimientos").innerHTML = movs.length
-          ? movs.map(m => `
-              <tr>
-                <td>${m.Fecha}</td>
-                <td>${m.Producto}</td>
-                <td>${m.Tipo}</td>
-                <td>${m.Cantidad}</td>
-                <td>${m.Motivo || ""}</td>
-                <td>${m.Stock_Resultante}</td>
-              </tr>`).join("")
-          : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
+        await apiGetSWR("movimientos", params, pintarMovimientos);
       } catch (e) {
         mostrarToast("Error al cargar movimientos: " + e.message, "error");
       }
     }
 
-    async function cargarExistencias() {
-      try {
-        const productos = await apiGet("productos");
-        const detalle = productos
-          .map(p => ({
-            nombre: p.Nombre,
-            categoria: p.Categoria || "",
-            stock: Number(p.Stock_Actual) || 0,
-            costoUnidad: Number(p.Precio_Compra) || 0,
-            valorTotal: (Number(p.Precio_Compra) || 0) * (Number(p.Stock_Actual) || 0),
-          }))
-          .sort((a, b) => b.valorTotal - a.valorTotal);
-
-        document.getElementById("tabla-existencias").innerHTML = detalle.length
-          ? detalle.map(p => `
-              <tr>
-                <td>${p.nombre}</td>
-                <td>${p.categoria}</td>
-                <td>${p.stock}</td>
-                <td>${money(p.costoUnidad)}</td>
-                <td><strong>${money(p.valorTotal)}</strong></td>
-              </tr>`).join("")
-          : `<tr><td colspan="5" class="text-muted">No hay productos registrados</td></tr>`;
-
-        const totalGeneral = detalle.reduce((acc, p) => acc + p.valorTotal, 0);
-        document.getElementById("total-existencias").textContent = "Valor total del inventario: " + money(totalGeneral);
-      } catch (e) {
-        mostrarToast("Error al cargar existencias: " + e.message, "error");
-      }
-    }
-
     async function registrarMovimiento(ev) {
       ev.preventDefault();
+      const btn = ev.submitter;
+      if (btn) btn.disabled = true; // evita registrar dos veces si el servidor tarda
       const data = {
         ID_Producto: document.getElementById("mov-producto").value,
         Tipo: document.getElementById("mov-tipo").value,
@@ -367,52 +348,47 @@
         await apiPost("crear_movimiento", data);
         mostrarToast("Movimiento registrado");
         document.getElementById("form-movimiento").reset();
-        await cargarSelectProductos();
-        cargarExistencias();
+        cargarProductosInventario();
+        buscarMovimientos();
       } catch (e) {
         mostrarToast("Error al registrar movimiento: " + e.message, "error");
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
-    async function cargarEnvasesActuales() {
-      try {
-        const productos = await apiGet("productos");
-        document.getElementById("tabla-envases-actuales").innerHTML = productos.length
-          ? productos.map(p => `
-              <tr>
-                <td>${p.Nombre}</td>
-                <td>${p.Envases_Vacios || 0}</td>
-              </tr>`).join("")
-          : `<tr><td colspan="2" class="text-muted">No hay productos registrados</td></tr>`;
-      } catch (e) {
-        mostrarToast("Error al cargar envases: " + e.message, "error");
-      }
-    }
+    // ---------------- Envases vacíos ----------------
 
-    async function buscarEnvasesHistorial() {
+    function buscarEnvasesHistorial() {
       const desde = document.getElementById("env-hist-desde").value;
       const hasta = document.getElementById("env-hist-hasta").value;
-      await cargarEnvasesHistorial(desde, hasta);
+      return cargarEnvasesHistorial(desde, hasta);
+    }
+
+    function pintarEnvasesHistorial(lista) {
+      const historial = [...lista].sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
+      document.getElementById("tabla-envases-historial").innerHTML = historial.length
+        ? historial.map(m => `
+            <tr>
+              <td>${esc(m.Fecha)}</td>
+              <td>${esc(m.Producto)}</td>
+              <td>${esc(m.Tipo)}</td>
+              <td>${esc(m.Cantidad)}</td>
+              <td>${esc(m.Motivo || "")}</td>
+              <td>${esc(m.Envases_Resultante)}</td>
+            </tr>`).join("")
+        : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
     }
 
     async function cargarEnvasesHistorial(desde, hasta) {
+      const params = {};
+      if (desde) params.desde = desde;
+      if (hasta) params.hasta = hasta;
+      if (!hayCache("movimientos_envases", params)) {
+        document.getElementById("tabla-envases-historial").innerHTML = filasCarga(6, 3);
+      }
       try {
-        const params = {};
-        if (desde) params.desde = desde;
-        if (hasta) params.hasta = hasta;
-        const historial = await apiGet("movimientos_envases", params);
-        historial.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
-        document.getElementById("tabla-envases-historial").innerHTML = historial.length
-          ? historial.map(m => `
-              <tr>
-                <td>${m.Fecha}</td>
-                <td>${m.Producto}</td>
-                <td>${m.Tipo}</td>
-                <td>${m.Cantidad}</td>
-                <td>${m.Motivo || ""}</td>
-                <td>${m.Envases_Resultante}</td>
-              </tr>`).join("")
-          : `<tr><td colspan="6" class="text-muted">No hay movimientos en este rango</td></tr>`;
+        await apiGetSWR("movimientos_envases", params, pintarEnvasesHistorial);
       } catch (e) {
         mostrarToast("Error al cargar envases: " + e.message, "error");
       }
@@ -420,6 +396,8 @@
 
     async function registrarEnvase(ev) {
       ev.preventDefault();
+      const btn = ev.submitter;
+      if (btn) btn.disabled = true;
       const data = {
         ID_Producto: document.getElementById("envase-producto").value,
         Tipo: document.getElementById("envase-tipo").value,
@@ -430,10 +408,12 @@
         await apiPost("crear_movimiento_envase", data);
         mostrarToast("Envases actualizados");
         document.getElementById("form-envase").reset();
-        await cargarSelectProductos();
-        cargarEnvasesActuales();
+        cargarProductosInventario();
+        buscarEnvasesHistorial();
       } catch (e) {
         mostrarToast("Error al registrar: " + e.message, "error");
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 </script>

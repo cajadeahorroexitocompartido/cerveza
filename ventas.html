@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ventas - Gestión Licorería</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4a1e2b">
+<link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"></noscript>
 <style>
     :root { --color-primario: #4a1e2b; --color-acento: #d4a24c; --bg-suave: #f7f4f1; }
     body { background-color: var(--bg-suave); font-family: 'Segoe UI', system-ui, sans-serif; padding-bottom: 78px; }
@@ -78,24 +84,9 @@
       h3 { font-size: 1.3rem; }
       input, select, textarea, button { font-size: 16px; }
     }
-
-    .loading-overlay {
-      position: fixed; inset: 0; background: rgba(247,244,241,0.97);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 14px; z-index: 2000; transition: opacity 0.25s ease;
-    }
-    .loading-overlay.oculto { opacity: 0; pointer-events: none; }
-    .loading-overlay i { font-size: 3rem; color: var(--color-primario); animation: girar 1.1s linear infinite; }
-    .loading-overlay p { color: #6c6c6c; font-weight: 600; margin: 0; }
-    @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-
-<div id="loading-overlay" class="loading-overlay">
-  <i class="fa-solid fa-wine-bottle"></i>
-  <p>Cargando datos...</p>
-</div>
 
 <nav class="navbar navbar-dark app-navbar">
   <div class="container-fluid">
@@ -232,35 +223,37 @@
 <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="app.js"></script>
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxSSl9VLppU6JH6ZKJ5dlQUn7qz_4DCD5661gIIzpfYFEzQosTIv2XC6g9rddjTU6pMBw/exec";
     let productosCache = [];
     let todasPresentacionesCache = [];
+    let presentacionesCargadas = false;
     let presentacionesDelProductoActual = [];
     let carrito = []; // { tempId, idPresentacion, nombreProducto, nombrePresentacion, cantidad, precioUnitario, unidadesPresentacion }
 
-    document.addEventListener("DOMContentLoaded", async () => {
-      const fechaEl = document.getElementById("fecha-actual");
-      if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
+    const METODOS_PAGO = [
+      { value: "Efectivo", label: "Efectivo" },
+      { value: "Tarjeta", label: "Tarjeta" },
+      { value: "Transferencia", label: "Transferencia" },
+    ];
 
+    document.addEventListener("DOMContentLoaded", () => {
       inicializarDropdown("dd-metodo");
       inicializarDropdown("dd-producto");
       inicializarDropdown("dd-presentacion");
 
-      poblarDropdownGenerico("dd-metodo", "venta-metodo", [
-        { value: "Efectivo", label: "Efectivo" },
-        { value: "Tarjeta", label: "Tarjeta" },
-        { value: "Transferencia", label: "Transferencia" },
-      ], "Efectivo", "Efectivo", null);
-
-      await Promise.all([
-        cargarSelectProductos(),
-        cargarTodasPresentaciones(),
-      ]);
-      ocultarCarga();
+      poblarDropdownGenerico("dd-metodo", "venta-metodo", METODOS_PAGO, "Efectivo", "Efectivo", null);
 
       document.getElementById("item-cantidad").addEventListener("input", validarBotonAgregar);
       document.getElementById("form-venta").addEventListener("submit", confirmarVenta);
+
+      // La página se muestra de una vez: productos, precios e historial llegan en paralelo
+      cargarSelectProductos();
+      cargarTodasPresentaciones();
+
+      // Historial: últimos 7 días por defecto (sin límite superior, así incluye lo de hoy)
+      document.getElementById("ventas-desde").value = haceDiasISO(6);
+      buscarVentas();
     });
 
     // ---------------- Dropdown propio ----------------
@@ -289,7 +282,7 @@
       const input = document.getElementById(idInput);
 
       menu.innerHTML = opciones.length
-        ? opciones.map(o => `<div class="opcion" data-value="${o.value}">${o.label}</div>`).join("")
+        ? opciones.map(o => `<div class="opcion" data-value="${esc(o.value)}">${esc(o.label)}</div>`).join("")
         : `<div class="opcion text-muted" style="pointer-events:none;">Sin opciones disponibles</div>`;
 
       menu.querySelectorAll(".opcion").forEach((el, i) => {
@@ -309,72 +302,54 @@
       toggle.classList.toggle("placeholder", !valorSeleccionado);
     }
 
-    // ---------------- API ----------------
-
-    async function apiGet(action, params) {
-      const qs = new URLSearchParams({ action, ...(params || {}) });
-      const res = await fetch(API_URL + "?" + qs.toString());
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error desconocido");
-      return json.data;
-    }
-
-    async function apiPost(action, data) {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action, ...(data || {}) }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error desconocido");
-      return json.data;
-    }
-
-    function money(valor) { return "$" + Number(valor || 0).toFixed(2); }
-
-    function ocultarCarga() {
-      const overlay = document.getElementById("loading-overlay");
-      if (overlay) overlay.classList.add("oculto");
-    }
-
-    function mostrarToast(mensaje, tipo = "success") {
-      const contenedor = document.getElementById("toast-container");
-      if (!contenedor) return;
-      const id = "t" + Date.now();
-      const html = `
-        <div id="${id}" class="toast align-items-center text-white bg-${tipo === "success" ? "success" : "danger"} border-0" role="alert">
-          <div class="d-flex">
-            <div class="toast-body">${mensaje}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-          </div>
-        </div>`;
-      contenedor.insertAdjacentHTML("beforeend", html);
-      new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
-    }
-
     // ---------------- Datos ----------------
 
+    function seleccionarProducto(idProducto) {
+      actualizarPresentacionesDelProducto(idProducto);
+    }
+
+    // Vuelve a llenar la lista de productos sin perder lo que el usuario ya eligió
+    function pintarProductosVenta(lista) {
+      productosCache = lista;
+      const opciones = lista.map(p => ({ value: p.ID, label: p.Nombre }));
+      const actual = document.getElementById("item-producto").value;
+      const elegido = actual ? opciones.find(o => String(o.value) === String(actual)) : null;
+
+      if (elegido) {
+        poblarDropdownGenerico("dd-producto", "item-producto", opciones, elegido.value, elegido.label, seleccionarProducto);
+      } else {
+        poblarDropdownGenerico("dd-producto", "item-producto", opciones, "", "Selecciona un producto", seleccionarProducto);
+      }
+    }
+
     async function cargarSelectProductos() {
+      if (!hayCache("productos")) {
+        poblarDropdownGenerico("dd-producto", "item-producto", [], "", "Cargando productos...", null);
+      }
       try {
-        productosCache = await apiGet("productos");
-        const opciones = productosCache.map(p => ({ value: p.ID, label: p.Nombre }));
-        poblarDropdownGenerico("dd-producto", "item-producto", opciones, "", "Selecciona un producto", (idProducto) => {
-          actualizarPresentacionesDelProducto(idProducto);
-        });
+        await apiGetSWR("productos", null, pintarProductosVenta);
       } catch (e) {
         mostrarToast("Error al cargar productos: " + e.message, "error");
       }
     }
 
+    function pintarPresentaciones(lista) {
+      todasPresentacionesCache = lista;
+      presentacionesCargadas = true;
+      const idProducto = document.getElementById("item-producto").value;
+      if (idProducto) actualizarPresentacionesDelProducto(idProducto, true);
+    }
+
     async function cargarTodasPresentaciones() {
       try {
-        todasPresentacionesCache = await apiGet("presentaciones");
+        await apiGetSWR("presentaciones", null, pintarPresentaciones);
       } catch (e) {
         mostrarToast("Error al cargar precios: " + e.message, "error");
       }
     }
 
-    function actualizarPresentacionesDelProducto(idProducto) {
+    // conservar = true: es una actualización en segundo plano, se respeta la presentación ya elegida
+    function actualizarPresentacionesDelProducto(idProducto, conservar = false) {
       presentacionesDelProductoActual = todasPresentacionesCache.filter(p => String(p.ID_Producto) === String(idProducto));
 
       const opciones = presentacionesDelProductoActual.map(p => ({
@@ -382,8 +357,15 @@
         label: `${p.Nombre} — ${money(p.Precio_Venta)} (${p.Unidades} unid.)`,
       }));
 
-      poblarDropdownGenerico("dd-presentacion", "item-presentacion", opciones, "",
-        opciones.length ? "Elige una presentación" : "Este producto no tiene precios configurados",
+      const actual = conservar ? document.getElementById("item-presentacion").value : "";
+      const elegida = actual ? opciones.find(o => String(o.value) === String(actual)) : null;
+
+      let textoVacio = "Elige una presentación";
+      if (!opciones.length) textoVacio = presentacionesCargadas ? "Este producto no tiene precios configurados" : "Cargando precios...";
+
+      poblarDropdownGenerico("dd-presentacion", "item-presentacion", opciones,
+        elegida ? elegida.value : "",
+        elegida ? elegida.label : textoVacio,
         () => validarBotonAgregar()
       );
 
@@ -419,7 +401,7 @@
       });
 
       // Reinicia solo la selección de producto/presentación/cantidad para agregar otro
-      poblarDropdownGenerico("dd-producto", "item-producto", productosCache.map(p => ({ value: p.ID, label: p.Nombre })), "", "Selecciona un producto", (idProducto) => actualizarPresentacionesDelProducto(idProducto));
+      poblarDropdownGenerico("dd-producto", "item-producto", productosCache.map(p => ({ value: p.ID, label: p.Nombre })), "", "Selecciona un producto", seleccionarProducto);
       poblarDropdownGenerico("dd-presentacion", "item-presentacion", [], "", "Selecciona un producto primero", null);
       document.getElementById("item-cantidad").value = 1;
       presentacionesDelProductoActual = [];
@@ -445,11 +427,11 @@
           return `
             <div class="carrito-item">
               <div class="info">
-                <div class="producto">${item.nombreProducto}</div>
-                <div class="detalle-linea">${item.cantidad} x ${item.nombrePresentacion} (${money(item.precioUnitario)} c/u) — ${unidadesTotales} unidades</div>
+                <div class="producto">${esc(item.nombreProducto)}</div>
+                <div class="detalle-linea">${esc(item.cantidad)} x ${esc(item.nombrePresentacion)} (${money(item.precioUnitario)} c/u) — ${unidadesTotales} unidades</div>
               </div>
               <div class="subtotal">${money(subtotal)}</div>
-              <button type="button" class="btn btn-sm btn-outline-danger" onclick="quitarDelCarrito('${item.tempId}')"><i class="fa-solid fa-trash"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="quitarDelCarrito('${esc(item.tempId)}')"><i class="fa-solid fa-trash"></i></button>
             </div>`;
         }).join("");
       }
@@ -479,22 +461,28 @@
 
     // ---------------- Historial ----------------
 
-    async function buscarVentas() {
+    function buscarVentas() {
       const desde = document.getElementById("ventas-desde").value;
       const hasta = document.getElementById("ventas-hasta").value;
-      await cargarVentas(desde, hasta);
+      return cargarVentas(desde, hasta);
+    }
+
+    function pintarVentas(lista) {
+      const ventas = [...lista].sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
+      document.getElementById("tabla-ventas").innerHTML = ventas.length
+        ? ventas.map(v => filaVenta(v)).join("")
+        : `<tr><td colspan="7" class="text-muted">No hay ventas en este rango</td></tr>`;
     }
 
     async function cargarVentas(desde, hasta) {
+      const params = {};
+      if (desde) params.desde = desde;
+      if (hasta) params.hasta = hasta;
+      if (!hayCache("ventas", params)) {
+        document.getElementById("tabla-ventas").innerHTML = filasCarga(7, 4);
+      }
       try {
-        const params = {};
-        if (desde) params.desde = desde;
-        if (hasta) params.hasta = hasta;
-        const ventas = await apiGet("ventas", params);
-        ventas.sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1));
-        document.getElementById("tabla-ventas").innerHTML = ventas.length
-          ? ventas.map(v => filaVenta(v)).join("")
-          : `<tr><td colspan="7" class="text-muted">No hay ventas en este rango</td></tr>`;
+        await apiGetSWR("ventas", params, pintarVentas);
       } catch (e) {
         mostrarToast("Error al cargar ventas: " + e.message, "error");
       }
@@ -503,13 +491,13 @@
     function filaVenta(v) {
       return `
           <tr>
-            <td>${v.Fecha}</td>
-            <td>${v.Producto}</td>
-            <td>${v.Presentacion || ""}</td>
-            <td>${v.Cantidad}</td>
+            <td>${esc(v.Fecha)}</td>
+            <td>${esc(v.Producto)}</td>
+            <td>${esc(v.Presentacion || "")}</td>
+            <td>${esc(v.Cantidad)}</td>
             <td>${money(v.Total)}</td>
-            <td>${v.Metodo_Pago}</td>
-            <td>${v.Descripcion || ""}</td>
+            <td>${esc(v.Metodo_Pago)}</td>
+            <td>${esc(v.Descripcion || "")}</td>
           </tr>`;
     }
 
@@ -522,6 +510,10 @@
         return;
       }
 
+      // Bloquea el botón mientras se guarda, para no registrar la venta dos veces
+      const btnVender = document.getElementById("btn-vender");
+      btnVender.disabled = true;
+
       const data = {
         Items: carrito.map(item => ({ ID_Presentacion: item.idPresentacion, Cantidad: item.cantidad })),
         Metodo_Pago: document.getElementById("venta-metodo").value,
@@ -533,7 +525,7 @@
         mostrarToast(`Venta registrada: ${resultado.Items.length} producto(s), total ${money(resultado.Total_General)}`);
 
         const tbodyVentas = document.getElementById("tabla-ventas");
-        if (tbodyVentas.querySelector("td[colspan]")) tbodyVentas.innerHTML = "";
+        if (tbodyVentas.querySelector("td[colspan]") || tbodyVentas.querySelector(".sk")) tbodyVentas.innerHTML = "";
 
         resultado.Items.forEach(linea => {
           tbodyVentas.insertAdjacentHTML("afterbegin", filaVenta({
@@ -550,12 +542,9 @@
         carrito = [];
         renderCarrito();
         document.getElementById("venta-descripcion").value = "";
-        poblarDropdownGenerico("dd-metodo", "venta-metodo", [
-          { value: "Efectivo", label: "Efectivo" },
-          { value: "Tarjeta", label: "Tarjeta" },
-          { value: "Transferencia", label: "Transferencia" },
-        ], "Efectivo", "Efectivo", null);
+        poblarDropdownGenerico("dd-metodo", "venta-metodo", METODOS_PAGO, "Efectivo", "Efectivo", null);
       } catch (e) {
+        btnVender.disabled = false;
         mostrarToast("Error al registrar venta: " + e.message, "error");
       }
     }

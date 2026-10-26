@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Productos - Gestión Licorería</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4a1e2b">
+<link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"></noscript>
 <style>
     :root { --color-primario: #4a1e2b; --color-acento: #d4a24c; --bg-suave: #f7f4f1; }
     body { background-color: var(--bg-suave); font-family: 'Segoe UI', system-ui, sans-serif; padding-bottom: 78px; }
@@ -43,24 +49,9 @@
       h3 { font-size: 1.3rem; }
       input, select, textarea, button { font-size: 16px; }
     }
-
-    .loading-overlay {
-      position: fixed; inset: 0; background: rgba(247,244,241,0.97);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 14px; z-index: 2000; transition: opacity 0.25s ease;
-    }
-    .loading-overlay.oculto { opacity: 0; pointer-events: none; }
-    .loading-overlay i { font-size: 3rem; color: var(--color-primario); animation: girar 1.1s linear infinite; }
-    .loading-overlay p { color: #6c6c6c; font-weight: 600; margin: 0; }
-    @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-
-<div id="loading-overlay" class="loading-overlay">
-  <i class="fa-solid fa-wine-bottle"></i>
-  <p>Cargando datos...</p>
-</div>
 
 <nav class="navbar navbar-dark app-navbar">
   <div class="container-fluid">
@@ -204,8 +195,8 @@
 <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="app.js"></script>
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxSSl9VLppU6JH6ZKJ5dlQUn7qz_4DCD5661gIIzpfYFEzQosTIv2XC6g9rddjTU6pMBw/exec";
     let productosCache = [];
 
     // Modo del modal: si es edición, las presentaciones se guardan de una vez en el Sheet.
@@ -215,80 +206,48 @@
     let modoEdicion = false;
     let idProductoEnEdicion = null;
     let presentacionesDraft = []; // { tempId, Nombre, Unidades, Precio_Venta }
+    let guardandoProducto = false;
 
     document.addEventListener("DOMContentLoaded", () => {
-      const fechaEl = document.getElementById("fecha-actual");
-      if (fechaEl) fechaEl.textContent = new Date().toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" });
       cargarProductos();
       document.getElementById("form-producto").addEventListener("submit", guardarProducto);
     });
 
-    async function apiGet(action, params) {
-      const qs = new URLSearchParams({ action, ...(params || {}) });
-      const res = await fetch(API_URL + "?" + qs.toString());
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error desconocido");
-      return json.data;
-    }
-
-    async function apiPost(action, data) {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action, ...(data || {}) }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error desconocido");
-      return json.data;
-    }
-
-    function money(valor) { return "$" + Number(valor || 0).toFixed(2); }
-
-    function ocultarCarga() {
-      const overlay = document.getElementById("loading-overlay");
-      if (overlay) overlay.classList.add("oculto");
-    }
-
-    function mostrarToast(mensaje, tipo = "success") {
-      const contenedor = document.getElementById("toast-container");
-      if (!contenedor) return;
-      const id = "t" + Date.now();
-      const html = `
-        <div id="${id}" class="toast align-items-center text-white bg-${tipo === "success" ? "success" : "danger"} border-0" role="alert">
-          <div class="d-flex">
-            <div class="toast-body">${mensaje}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-          </div>
-        </div>`;
-      contenedor.insertAdjacentHTML("beforeend", html);
-      new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
+    function pintarProductos(lista) {
+      productosCache = lista;
+      document.getElementById("tabla-productos").innerHTML = lista.length
+        ? lista.map((p, i) => `
+          <tr>
+            <td>${esc(p.Nombre)}</td>
+            <td>${esc(p.Categoria || "")}</td>
+            <td>${money(p.Precio_Compra)}</td>
+            <td>${esc(p.Unidades_Por_Jaba || 12)}</td>
+            <td>${esc(p.Stock_Actual)}</td>
+            <td>${esc(p.Stock_Minimo)}</td>
+            <td>${esc(p.Proveedor || "")}</td>
+            <td class="text-nowrap">
+              <button class="btn btn-sm btn-outline-secondary" onclick="abrirModalProducto(${i})"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="eliminarProducto('${esc(p.ID)}')"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>`).join("")
+        : `<tr><td colspan="8" class="text-muted">No hay productos registrados</td></tr>`;
     }
 
     async function cargarProductos() {
+      if (!hayCache("productos")) {
+        document.getElementById("tabla-productos").innerHTML = filasCarga(8, 5);
+      }
       try {
-        productosCache = await apiGet("productos");
-        document.getElementById("tabla-productos").innerHTML = productosCache.map(p => `
-          <tr>
-            <td>${p.Nombre}</td>
-            <td>${p.Categoria || ""}</td>
-            <td>${money(p.Precio_Compra)}</td>
-            <td>${p.Unidades_Por_Jaba || 12}</td>
-            <td>${p.Stock_Actual}</td>
-            <td>${p.Stock_Minimo}</td>
-            <td>${p.Proveedor || ""}</td>
-            <td class="text-nowrap">
-              <button class="btn btn-sm btn-outline-secondary" onclick='abrirModalProducto(${JSON.stringify(p)})'><i class="fa-solid fa-pen"></i></button>
-              <button class="btn btn-sm btn-outline-danger" onclick="eliminarProducto('${p.ID}')"><i class="fa-solid fa-trash"></i></button>
-            </td>
-          </tr>`).join("");
+        await apiGetSWR("productos", null, pintarProductos);
       } catch (e) {
         mostrarToast("Error al cargar productos: " + e.message, "error");
-      } finally {
-        ocultarCarga();
       }
     }
 
+    // Acepta el producto completo o su posición en la lista
     async function abrirModalProducto(producto = null) {
+      if (typeof producto === "number") producto = productosCache[producto];
+
       document.getElementById("form-producto").reset();
       document.getElementById("pres-tipo-modal").value = "jaba";
 
@@ -305,7 +264,7 @@
         document.getElementById("producto-stock-minimo").value = producto.Stock_Minimo;
         document.getElementById("producto-proveedor").value = producto.Proveedor;
 
-        new bootstrap.Modal(document.getElementById("modalProducto")).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalProducto")).show();
         await recargarTablaPresentacionesEdicion();
       } else {
         modoEdicion = false;
@@ -317,7 +276,7 @@
         document.getElementById("producto-stock-minimo").value = 0;
         document.getElementById("producto-unidades-jaba").value = 12;
         renderTablaPresentacionesDraft();
-        new bootstrap.Modal(document.getElementById("modalProducto")).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalProducto")).show();
       }
     }
 
@@ -326,10 +285,10 @@
       tbody.innerHTML = presentacionesDraft.length
         ? presentacionesDraft.map(p => `
             <tr>
-              <td>${p.Nombre}</td>
-              <td>${p.Unidades}</td>
+              <td>${esc(p.Nombre)}</td>
+              <td>${esc(p.Unidades)}</td>
               <td>${money(p.Precio_Venta)}</td>
-              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="quitarPresentacionDraft('${p.tempId}')"><i class="fa-solid fa-trash"></i></button></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="quitarPresentacionDraft('${esc(p.tempId)}')"><i class="fa-solid fa-trash"></i></button></td>
             </tr>`).join("")
         : `<tr><td colspan="4" class="text-muted">Todavía no hay precios agregados</td></tr>`;
     }
@@ -339,20 +298,30 @@
       renderTablaPresentacionesDraft();
     }
 
+    // Usa la lista completa de precios (la misma que usa Ventas) y la filtra aquí: abre al instante
     async function recargarTablaPresentacionesEdicion() {
       const tbody = document.getElementById("tabla-presentaciones-modal");
-      tbody.innerHTML = `<tr><td colspan="4" class="text-muted">Cargando...</td></tr>`;
-      try {
-        const presentaciones = await apiGet("presentaciones", { id_producto: idProductoEnEdicion });
-        tbody.innerHTML = presentaciones.length
-          ? presentaciones.map(p => `
+      const idActual = idProductoEnEdicion;
+
+      const pintar = (todas) => {
+        if (String(idProductoEnEdicion) !== String(idActual)) return; // el modal ya cambió de producto
+        const lista = todas.filter(p => String(p.ID_Producto) === String(idActual));
+        tbody.innerHTML = lista.length
+          ? lista.map(p => `
               <tr>
-                <td>${p.Nombre}</td>
-                <td>${p.Unidades}</td>
+                <td>${esc(p.Nombre)}</td>
+                <td>${esc(p.Unidades)}</td>
                 <td>${money(p.Precio_Venta)}</td>
-                <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarPresentacionEdicion('${p.ID}')"><i class="fa-solid fa-trash"></i></button></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarPresentacionEdicion('${esc(p.ID)}')"><i class="fa-solid fa-trash"></i></button></td>
               </tr>`).join("")
           : `<tr><td colspan="4" class="text-muted">Todavía no hay precios agregados</td></tr>`;
+      };
+
+      if (!hayCache("presentaciones")) {
+        tbody.innerHTML = filasCarga(4, 2);
+      }
+      try {
+        await apiGetSWR("presentaciones", null, pintar);
       } catch (e) {
         mostrarToast("Error al cargar precios: " + e.message, "error");
       }
@@ -401,6 +370,14 @@
 
     async function guardarProducto(ev) {
       ev.preventDefault();
+      if (guardandoProducto) return; // evita guardar dos veces si el servidor tarda
+      guardandoProducto = true;
+
+      const btn = ev.submitter || document.querySelector("#form-producto button[type=submit]");
+      const textoBoton = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
       const id = document.getElementById("producto-id").value;
       const data = {
         Nombre: document.getElementById("producto-nombre").value,
@@ -415,10 +392,13 @@
       try {
         if (id) {
           await apiPost("actualizar_producto", { ID: id, ...data });
+          productosCache = productosCache.map(p => String(p.ID) === String(id) ? { ...p, ...data } : p);
           mostrarToast("Producto actualizado");
         } else {
           const nuevoProducto = await apiPost("crear_producto", data);
+          productosCache = [...productosCache, { Envases_Vacios: 0, ...data, ...nuevoProducto }];
 
+          // Se mantienen en orden (una por una) para no arriesgar duplicar IDs en la hoja
           for (const pres of presentacionesDraft) {
             await apiPost("crear_presentacion", {
               ID_Producto: nuevoProducto.ID,
@@ -431,20 +411,31 @@
           mostrarToast("Producto y precios creados correctamente");
         }
 
-        bootstrap.Modal.getInstance(document.getElementById("modalProducto")).hide();
-        cargarProductos();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalProducto")).hide();
+        pintarProductos(productosCache); // se ve al instante...
+        cargarProductos();               // ...y se confirma con el servidor en segundo plano
       } catch (e) {
         mostrarToast("Error al guardar: " + e.message, "error");
+      } finally {
+        guardandoProducto = false;
+        btn.disabled = false;
+        btn.innerHTML = textoBoton;
       }
     }
 
     async function eliminarProducto(id) {
       if (!confirm("¿Eliminar este producto y todos sus precios? Esta acción no se puede deshacer.")) return;
+
+      const respaldo = productosCache;
+      productosCache = productosCache.filter(p => String(p.ID) !== String(id));
+      pintarProductos(productosCache); // desaparece al instante
+
       try {
         await apiPost("eliminar_producto", { ID: id });
         mostrarToast("Producto eliminado");
         cargarProductos();
       } catch (e) {
+        pintarProductos(respaldo); // si falló, vuelve a aparecer
         mostrarToast("Error al eliminar: " + e.message, "error");
       }
     }
